@@ -705,10 +705,41 @@ async function createFeloAccount(
 }
 
 /**
+ * Launch browser with proper configuration
+ */
+async function launchBrowser(): Promise<any> {
+  // Prepare launch args
+  const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+  
+  if (!PUPPETEER_HEADLESS) {
+    launchArgs.push('--start-maximized');
+  } else {
+    // Additional flags for headless mode in CI environments
+    launchArgs.push(
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer'
+    );
+  }
+  
+  return await puppeteer.launch({
+    headless: PUPPETEER_HEADLESS,
+    defaultViewport: null,
+    args: launchArgs,
+  });
+}
+
+/**
  * Create a single account
  */
-async function createSingleAccount(browser: any): Promise<{ success: boolean; email?: string; error?: string }> {
+async function createSingleAccount(): Promise<{ success: boolean; email?: string; error?: string }> {
+  let browser;
+  
   try {
+    // Launch browser for this account
+    console.log(`Launching browser in ${PUPPETEER_HEADLESS ? 'headless' : 'visible'} mode...`);
+    browser = await launchBrowser();
+    
     // Generate password
     const password = Math.random().toString(36).substring(2, 15) + 
                      Math.random().toString(36).substring(2, 15) + 
@@ -736,6 +767,11 @@ async function createSingleAccount(browser: any): Promise<{ success: boolean; em
     console.log('Saving account to D1 database...');
     await saveAccountToD1(accountData);
     
+    // Close browser after account creation
+    console.log('Closing browser...');
+    await browser.close();
+    browser = null;
+    
     if (result.success) {
       console.log('\n✓ Account created successfully!');
       console.log(`✓ Email: ${accountData.email}`);
@@ -749,6 +785,16 @@ async function createSingleAccount(browser: any): Promise<{ success: boolean; em
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('\n✗ Error during account creation:', errorMessage);
+    
+    // Ensure browser is closed even on error
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (closeError) {
+        // Ignore close errors
+      }
+    }
+    
     return { success: false, error: errorMessage };
   }
 }
@@ -765,42 +811,19 @@ async function main() {
   console.log(`\n🚀 Starting account creation process`);
   console.log(`📊 Accounts to create: ${ACCOUNTS_PER_RUN}`);
   console.log(`🌐 Worker URL: ${WORKER_URL}`);
-  console.log(`👻 Headless mode: ${PUPPETEER_HEADLESS ? 'Yes' : 'No'}\n`);
+  console.log(`👻 Headless mode: ${PUPPETEER_HEADLESS ? 'Yes' : 'No'}`);
+  console.log(`🔄 Browser will be closed after each account\n`);
   
-  let browser;
   const results = { success: 0, failed: 0 };
   
   try {
-    // Launch browser once and reuse for all accounts
-    console.log(`Launching browser in ${PUPPETEER_HEADLESS ? 'headless' : 'visible'} mode...`);
-    
-    // Prepare launch args
-    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
-    
-    if (!PUPPETEER_HEADLESS) {
-      launchArgs.push('--start-maximized');
-    } else {
-      // Additional flags for headless mode in CI environments
-      launchArgs.push(
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer'
-      );
-    }
-    
-    browser = await puppeteer.launch({
-      headless: PUPPETEER_HEADLESS,
-      defaultViewport: null,
-      args: launchArgs,
-    });
-    
-    // Create multiple accounts
+    // Create multiple accounts (each with its own browser instance)
     for (let i = 1; i <= ACCOUNTS_PER_RUN; i++) {
       console.log(`\n${'='.repeat(50)}`);
       console.log(`Creating account ${i} of ${ACCOUNTS_PER_RUN}`);
       console.log(`${'='.repeat(50)}`);
       
-      const result = await createSingleAccount(browser);
+      const result = await createSingleAccount();
       
       if (result.success) {
         results.success++;
@@ -814,9 +837,6 @@ async function main() {
         await delay(2000);
       }
     }
-    
-    // Close browser
-    await browser.close();
     
     // Summary
     console.log(`\n${'='.repeat(50)}`);
@@ -834,9 +854,6 @@ async function main() {
     
   } catch (error) {
     console.error('\n✗ Error during account creation:', error);
-    if (browser) {
-      await browser.close().catch(() => {});
-    }
     process.exit(1);
   }
 }
