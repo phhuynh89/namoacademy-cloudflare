@@ -24,7 +24,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "puppeteer": "^21.6.0"
+    "puppeteer": "^24.34.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240222.0",

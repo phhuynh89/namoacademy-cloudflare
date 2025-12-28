@@ -25,18 +25,20 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+      - name: Cache Puppeteer Chromium
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/puppeteer
+            node_modules/.cache/puppeteer
+          key: ${{ runner.os }}-puppeteer-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-puppeteer-
 
-      - name: Install Puppeteer dependencies
+      - name: Install Puppeteer system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
             ca-certificates \
             fonts-liberation \
             libappindicator3-1 \
@@ -74,6 +76,14 @@ jobs:
             lsb-release \
             wget \
             xdg-utils
+
+      - name: Install npm dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --prefer-offline --no-audit --no-fund
+          else
+            npm install --prefer-offline --no-audit --no-fund
+          fi
 
       - name: Create .dev.vars file
         run: |
