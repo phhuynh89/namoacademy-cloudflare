@@ -1,0 +1,28 @@
+{
+  "name": "namoacademy-cloudflare",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers project with D1 SQLite database",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create namoacademy-db",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:local": "wrangler d1 execute DB --local --file=./schema.sql --env development",
+    "db:setup": "npm run db:local && npm run db:migrate:local"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "d1",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240222.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.19.0"
+  }
+}
