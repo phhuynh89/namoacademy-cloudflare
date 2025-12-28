@@ -12,3 +12,8 @@ TESTMAIL_NAMESPACE=your-namespace
 # Change this if your worker is deployed or running on a different port
 WORKER_URL=http://localhost:8787
 
+# Puppeteer headless mode (default: false)
+# Set to 'true' or '1' to run browser in headless/background mode
+# Set to 'false' or leave empty to show browser window
+PUPPETEER_HEADLESS=false
+

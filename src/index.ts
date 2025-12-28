@@ -58,19 +58,23 @@ export default {
           createdAt: string;
           status: 'created' | 'failed';
           error?: string;
+          loginAt?: string;
+          credits?: number;
         };
         
         try {
           await env.DB.prepare(
-            `INSERT INTO felo_accounts (email, password, created_at, status, error)
-             VALUES (?, ?, ?, ?, ?)`
+            `INSERT INTO felo_accounts (email, password, created_at, status, error, login_at, credits)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
           )
             .bind(
               accountData.email,
               accountData.password,
               accountData.createdAt,
               accountData.status,
-              accountData.error || null
+              accountData.error || null,
+              accountData.loginAt || null,
+              accountData.credits ?? 200
             )
             .run();
           
@@ -98,7 +102,7 @@ export default {
       
       // Get all accounts
       if (path === "/api/accounts" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id, email, created_at, status FROM felo_accounts ORDER BY id DESC").all();
+        const result = await env.DB.prepare("SELECT id, email, created_at, status, login_at, credits FROM felo_accounts ORDER BY id DESC").all();
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

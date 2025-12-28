@@ -8,9 +8,10 @@
     "dev:remote": "wrangler dev --remote",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create namoacademy-db",
-    "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:local": "wrangler d1 execute DB --local --file=./schema.sql --env development",
+    "db:migrate": "wrangler d1 migrations apply namoacademy-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply namoacademy-db --local",
+    "db:execute:remote": "wrangler d1 execute namoacademy-db --remote --file",
+    "db:local": "wrangler d1 execute namoacademy-db --local --file=./schema.sql",
     "db:setup": "npm run db:local && npm run db:migrate:local",
     "create-account": "npx tsx src/local/account-creator.ts"
   },

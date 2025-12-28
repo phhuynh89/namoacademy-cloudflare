@@ -26,6 +26,7 @@ if (fs.existsSync(devVarsPath)) {
 const TESTMAIL_API_KEY = process.env.TESTMAIL_API_KEY || '';
 const TESTMAIL_NAMESPACE = process.env.TESTMAIL_NAMESPACE || '';
 const WORKER_URL = process.env.WORKER_URL || 'http://localhost:8787';
+const PUPPETEER_HEADLESS = process.env.PUPPETEER_HEADLESS === 'true' || process.env.PUPPETEER_HEADLESS === '1';
 
 /**
  * Helper function to wait/delay
@@ -40,6 +41,8 @@ interface AccountData {
   createdAt: string;
   status: 'created' | 'failed';
   error?: string;
+  loginAt?: string;
+  credits?: number;
 }
 
 /**
@@ -50,9 +53,10 @@ function getTempEmail(): string {
     throw new Error('TESTMAIL_NAMESPACE is required. Please set it in .dev.vars');
   }
   
-  const randomTag = Math.random().toString(36).substring(2, 15) + 
-                    Math.random().toString(36).substring(2, 15) +
-                    Date.now().toString(36);
+  // Generate shorter tag: 8 characters from random string + 4 characters from timestamp
+  const randomPart = Math.random().toString(36).substring(2, 10);
+  const timePart = Date.now().toString(36).slice(-4);
+  const randomTag = randomPart + timePart;
   
   return `${TESTMAIL_NAMESPACE}.${randomTag}@inbox.testmail.app`;
 }
@@ -722,9 +726,9 @@ async function main() {
     console.log(`Generated email: ${email}`);
     
     // Launch browser
-    console.log('Launching browser...');
+    console.log(`Launching browser in ${PUPPETEER_HEADLESS ? 'headless' : 'visible'} mode...`);
     browser = await puppeteer.launch({
-      headless: false, // Set to true for headless mode
+      headless: PUPPETEER_HEADLESS,
       defaultViewport: null,
       args: ['--start-maximized'],
     });
