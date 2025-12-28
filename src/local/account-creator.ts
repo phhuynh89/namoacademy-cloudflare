@@ -27,6 +27,7 @@ const TESTMAIL_API_KEY = process.env.TESTMAIL_API_KEY || '';
 const TESTMAIL_NAMESPACE = process.env.TESTMAIL_NAMESPACE || '';
 const WORKER_URL = process.env.WORKER_URL || 'http://localhost:8787';
 const PUPPETEER_HEADLESS = process.env.PUPPETEER_HEADLESS === 'true' || process.env.PUPPETEER_HEADLESS === '1';
+const ACCOUNTS_PER_RUN = parseInt(process.env.ACCOUNTS_PER_RUN || '1', 10);
 
 /**
  * Helper function to wait/delay
@@ -704,16 +705,9 @@ async function createFeloAccount(
 }
 
 /**
- * Main function
+ * Create a single account
  */
-async function main() {
-  if (!TESTMAIL_NAMESPACE) {
-    console.error('Error: TESTMAIL_NAMESPACE is not set in .dev.vars file');
-    process.exit(1);
-  }
-  
-  let browser;
-  
+async function createSingleAccount(browser: any): Promise<{ success: boolean; email?: string; error?: string }> {
   try {
     // Generate password
     const password = Math.random().toString(36).substring(2, 15) + 
@@ -725,7 +719,59 @@ async function main() {
     const email = getTempEmail();
     console.log(`Generated email: ${email}`);
     
-    // Launch browser
+    // Create account on felo.ai
+    console.log('Creating account on felo.ai...');
+    const result = await createFeloAccount(browser, email, password);
+    
+    // Prepare account data
+    const accountData: AccountData = {
+      email,
+      password,
+      createdAt: new Date().toISOString(),
+      status: result.success ? 'created' : 'failed',
+      error: result.error,
+    };
+    
+    // Save to D1 database via Worker API
+    console.log('Saving account to D1 database...');
+    await saveAccountToD1(accountData);
+    
+    if (result.success) {
+      console.log('\n✓ Account created successfully!');
+      console.log(`✓ Email: ${accountData.email}`);
+      console.log(`✓ Created at: ${accountData.createdAt}`);
+      return { success: true, email: accountData.email };
+    } else {
+      console.log('\n✗ Account creation failed');
+      console.log(`✗ Error: ${result.error}`);
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('\n✗ Error during account creation:', errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Main function
+ */
+async function main() {
+  if (!TESTMAIL_NAMESPACE) {
+    console.error('Error: TESTMAIL_NAMESPACE is not set in .dev.vars file');
+    process.exit(1);
+  }
+  
+  console.log(`\n🚀 Starting account creation process`);
+  console.log(`📊 Accounts to create: ${ACCOUNTS_PER_RUN}`);
+  console.log(`🌐 Worker URL: ${WORKER_URL}`);
+  console.log(`👻 Headless mode: ${PUPPETEER_HEADLESS ? 'Yes' : 'No'}\n`);
+  
+  let browser;
+  const results = { success: 0, failed: 0 };
+  
+  try {
+    // Launch browser once and reuse for all accounts
     console.log(`Launching browser in ${PUPPETEER_HEADLESS ? 'headless' : 'visible'} mode...`);
     
     // Prepare launch args
@@ -748,33 +794,42 @@ async function main() {
       args: launchArgs,
     });
     
-    // Create account on felo.ai
-    console.log('Creating account on felo.ai...');
-    const result = await createFeloAccount(browser, email, password);
-    
-    // Prepare account data
-    const accountData: AccountData = {
-      email,
-      password,
-      createdAt: new Date().toISOString(),
-      status: result.success ? 'created' : 'failed',
-      error: result.error,
-    };
-    
-    // Save to D1 database via Worker API
-    console.log('Saving account to D1 database...');
-    await saveAccountToD1(accountData);
+    // Create multiple accounts
+    for (let i = 1; i <= ACCOUNTS_PER_RUN; i++) {
+      console.log(`\n${'='.repeat(50)}`);
+      console.log(`Creating account ${i} of ${ACCOUNTS_PER_RUN}`);
+      console.log(`${'='.repeat(50)}`);
+      
+      const result = await createSingleAccount(browser);
+      
+      if (result.success) {
+        results.success++;
+      } else {
+        results.failed++;
+      }
+      
+      // Add a small delay between accounts to avoid rate limiting
+      if (i < ACCOUNTS_PER_RUN) {
+        console.log('\n⏳ Waiting 2 seconds before next account...');
+        await delay(2000);
+      }
+    }
     
     // Close browser
     await browser.close();
     
-    if (result.success) {
-      console.log('\n✓ Account created successfully!');
-      console.log(`✓ Email: ${accountData.email}`);
-      console.log(`✓ Created at: ${accountData.createdAt}`);
-    } else {
-      console.log('\n✗ Account creation failed');
-      console.log(`✗ Error: ${result.error}`);
+    // Summary
+    console.log(`\n${'='.repeat(50)}`);
+    console.log('📊 Summary');
+    console.log(`${'='.repeat(50)}`);
+    console.log(`✅ Successful: ${results.success}`);
+    console.log(`❌ Failed: ${results.failed}`);
+    console.log(`📈 Total: ${ACCOUNTS_PER_RUN}`);
+    console.log(`${'='.repeat(50)}\n`);
+    
+    // Exit with error code if any failed
+    if (results.failed > 0) {
+      process.exit(1);
     }
     
   } catch (error) {

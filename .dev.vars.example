@@ -17,3 +17,7 @@ WORKER_URL=http://localhost:8787
 # Set to 'false' or leave empty to show browser window
 PUPPETEER_HEADLESS=false
 
+# Number of accounts to create per run (default: 1)
+# Set this to create multiple accounts in a single execution
+ACCOUNTS_PER_RUN=1
+

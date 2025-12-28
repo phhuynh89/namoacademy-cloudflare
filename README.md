@@ -212,13 +212,15 @@ You can automate account creation using GitHub Actions. The workflow is configur
    - `TESTMAIL_API_KEY` - Your testmail.app API key
    - `TESTMAIL_NAMESPACE` - Your testmail.app namespace  
    - `WORKER_URL` - Your deployed Cloudflare Worker URL
+   - `ACCOUNTS_PER_RUN` (optional) - Number of accounts to create per run (default: 1)
 
 2. **Configure Schedule** (optional):
    Edit `.github/workflows/create-account.yml` to change the cron schedule:
    ```yaml
    schedule:
-     - cron: '* * * * *'  # Every minute (default)
+     - cron: '*/5 * * * *'  # Every 5 minutes (minimum allowed by GitHub Actions)
    ```
+   **Note:** GitHub Actions has a minimum interval of 5 minutes. Schedules use UTC time.
 
 3. **Manual Trigger**:
    - Go to Actions tab → "Create Felo Account" → "Run workflow"

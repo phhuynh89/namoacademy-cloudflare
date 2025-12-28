@@ -15,21 +15,28 @@ This workflow automatically creates Felo accounts using Puppeteer on a scheduled
    - `TESTMAIL_API_KEY` - Your testmail.app API key
    - `TESTMAIL_NAMESPACE` - Your testmail.app namespace
    - `WORKER_URL` - Your deployed Cloudflare Worker URL (e.g., `https://namoacademy-api.huynhphvan.workers.dev`)
+   - `ACCOUNTS_PER_RUN` (optional) - Number of accounts to create per workflow run (default: 1)
 
 2. **Configure Schedule**
 
-   The workflow is set to run every minute by default. To change the schedule, edit `.github/workflows/create-account.yml` and modify the cron expression:
+   The workflow is set to run every 5 minutes by default (GitHub Actions minimum interval). To change the schedule, edit `.github/workflows/create-account.yml` and modify the cron expression:
 
    ```yaml
    schedule:
-     - cron: '* * * * *'  # Every minute
+     - cron: '*/5 * * * *'  # Every 5 minutes (minimum)
    ```
 
+   **Important Notes:**
+   - GitHub Actions has a **minimum interval of 5 minutes** for scheduled workflows
+   - Schedules use **UTC time**, not your local timezone
+   - Workflow must be in the **default branch** (usually `main` or `master`)
+
    Common cron patterns:
-   - `'*/5 * * * *'` - Every 5 minutes
+   - `'*/5 * * * *'` - Every 5 minutes (minimum allowed)
+   - `'*/10 * * * *'` - Every 10 minutes
    - `'0 * * * *'` - Every hour
    - `'0 */6 * * *'` - Every 6 hours
-   - `'0 0 * * *'` - Daily at midnight
+   - `'0 0 * * *'` - Daily at midnight UTC
 
 3. **Manual Trigger**
 

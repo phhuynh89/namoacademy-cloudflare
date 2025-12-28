@@ -1,9 +1,10 @@
 name: Create Felo Account
 
 on:
-  # Run every minute
+  # Run every 5 minutes (GitHub Actions minimum interval)
+  # Note: GitHub Actions schedules use UTC time
   schedule:
-    - cron: '* * * * *'
+    - cron: '*/5 * * * *'
   # Allow manual triggering
   workflow_dispatch:
   # Optional: Run on push to main (for testing)
@@ -91,6 +92,7 @@ jobs:
           TESTMAIL_NAMESPACE=${{ secrets.TESTMAIL_NAMESPACE }}
           WORKER_URL=${{ secrets.WORKER_URL }}
           PUPPETEER_HEADLESS=true
+          ACCOUNTS_PER_RUN=${{ secrets.ACCOUNTS_PER_RUN || '1' }}
           EOF
 
       - name: Run account creation
