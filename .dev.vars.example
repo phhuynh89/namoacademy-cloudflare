@@ -1,0 +1,14 @@
+# Local development environment variables
+# Copy this file to .dev.vars and fill in your values
+# .dev.vars is gitignored and won't be committed
+
+# Testmail.app configuration
+# Sign up at https://testmail.app/ and get your API key and namespace
+# Then replace the values below with your actual credentials
+TESTMAIL_API_KEY=your-api-key
+TESTMAIL_NAMESPACE=your-namespace
+
+# Worker URL for saving accounts (default: http://localhost:8787)
+# Change this if your worker is deployed or running on a different port
+WORKER_URL=http://localhost:8787
+

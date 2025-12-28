@@ -5,12 +5,14 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:remote": "wrangler dev --remote",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create namoacademy-db",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:local": "wrangler d1 execute DB --local --file=./schema.sql --env development",
-    "db:setup": "npm run db:local && npm run db:migrate:local"
+    "db:setup": "npm run db:local && npm run db:migrate:local",
+    "create-account": "npx tsx src/local/account-creator.ts"
   },
   "keywords": [
     "cloudflare",
@@ -20,8 +22,13 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.6.0"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240222.0",
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "wrangler": "^3.19.0"
   }

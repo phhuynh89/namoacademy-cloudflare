@@ -34,11 +34,74 @@ export default {
       // Health check endpoint
       if (path === "/" || path === "/health") {
         return new Response(
-          JSON.stringify({ status: "ok", message: "Cloudflare Worker with D1 Database is running" }),
+          JSON.stringify({ 
+            status: "ok", 
+            message: "Cloudflare Worker with D1 Database and Account Creator is running",
+            endpoints: {
+              health: "GET /health",
+              saveAccount: "POST /api/accounts/save",
+              getAccounts: "GET /api/accounts",
+              items: "GET /api/items"
+            }
+          }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
+      }
+
+      // Save account to D1 database (called by local Puppeteer script)
+      if (path === "/api/accounts/save" && request.method === "POST") {
+        const accountData = await request.json() as {
+          email: string;
+          password: string;
+          createdAt: string;
+          status: 'created' | 'failed';
+          error?: string;
+        };
+        
+        try {
+          await env.DB.prepare(
+            `INSERT INTO felo_accounts (email, password, created_at, status, error)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+            .bind(
+              accountData.email,
+              accountData.password,
+              accountData.createdAt,
+              accountData.status,
+              accountData.error || null
+            )
+            .run();
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Account saved successfully' }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            }
+          );
+        } catch (error) {
+          console.error('Failed to save account:', error);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: error instanceof Error ? error.message : String(error) 
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 500,
+            }
+          );
+        }
+      }
+      
+      // Get all accounts
+      if (path === "/api/accounts" && request.method === "GET") {
+        const result = await env.DB.prepare("SELECT id, email, created_at, status FROM felo_accounts ORDER BY id DESC").all();
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Get all items

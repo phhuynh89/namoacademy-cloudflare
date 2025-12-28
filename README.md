@@ -1,6 +1,6 @@
-# Cloudflare Workers with D1 SQLite Database
+# Cloudflare Workers with D1 Database and Account Creator
 
-A Cloudflare Workers project with D1 (SQLite) database integration.
+A Cloudflare Workers project with D1 (SQLite) database integration and automated account creation on felo.ai using Puppeteer and Browser Rendering API.
 
 ## Prerequisites
 
@@ -52,9 +52,13 @@ For production/remote database, apply migrations:
 npm run db:migrate
 ```
 
-**Note:** The migrations directory already contains `0001_initial.sql` with the initial schema.
+**Note:** The migrations directory contains:
+- `0001_initial.sql` - Initial items table
+- `0002_accounts.sql` - Felo accounts table for felo.ai accounts
 
 ## Development
+
+### Running the Worker
 
 Start the local development server:
 
@@ -64,14 +68,43 @@ npm run dev
 
 The worker will be available at `http://localhost:8787`
 
+### Running Account Creation (Local Puppeteer)
+
+The account creation automation runs on your local machine using Puppeteer. **Make sure the worker is running first** (in a separate terminal), then:
+
+```bash
+npm run create-account
+```
+
+This will:
+1. Launch a browser window on your local machine
+2. Automate account creation on felo.ai
+3. Save the account to Cloudflare D1 database via the Worker API
+
+**Workflow:**
+1. Terminal 1: `npm run dev` (starts the Worker)
+2. Terminal 2: `npm run create-account` (runs Puppeteer automation)
+
 ## API Endpoints
 
+### General
 - `GET /` or `GET /health` - Health check
+
+### Items API
 - `GET /api/items` - Get all items
 - `GET /api/items/:id` - Get item by ID
 - `POST /api/items` - Create new item (body: `{ name: string, description?: string }`)
 - `PUT /api/items/:id` - Update item (body: `{ name?: string, description?: string }`)
 - `DELETE /api/items/:id` - Delete item
+
+### Account Management API
+- `POST /api/accounts/save` - Save account data to D1 database (called by local Puppeteer script)
+  - Body: `{ email, password, createdAt, status, error? }`
+  - Returns: `{ success: boolean, message: string }`
+- `GET /api/accounts` - Get all saved accounts
+  - Returns: List of accounts (without passwords)
+
+**Note:** Account creation is done via the local Puppeteer script (`npm run create-account`), not through the Worker API.
 
 ## Deployment
 
@@ -86,17 +119,86 @@ npm run deploy
 ```
 .
 ├── src/
-│   └── index.ts          # Main worker file
-├── schema.sql            # Database schema
-├── wrangler.toml         # Wrangler configuration
-├── tsconfig.json         # TypeScript configuration
-└── package.json          # Dependencies and scripts
+│   ├── index.ts                    # Main worker file (API endpoints)
+│   └── local/
+│       └── account-creator.ts     # Local Puppeteer script for account creation
+├── migrations/
+│   ├── 0001_initial.sql           # Initial items table
+│   └── 0002_accounts.sql         # Accounts table
+├── schema.sql                     # Database schema
+├── wrangler.toml                  # Wrangler configuration
+├── tsconfig.json                  # TypeScript configuration
+├── package.json                   # Dependencies and scripts
+└── .dev.vars                      # Local environment variables
 ```
 
 ## Notes
 
 - The project uses Wrangler v3+ (not the deprecated v1.x)
-- D1 database is bound as `DB` in the worker
+- D1 database is bound as `DB` in the worker for storing account data
+- Puppeteer runs locally on your machine (not in the Worker)
+- The local script (`src/local/account-creator.ts`) handles browser automation
+- The Worker provides API endpoints to save accounts to D1
 - All endpoints include CORS headers for cross-origin requests
-- The database schema includes a sample `items` table
+- The database schema includes `items` and `felo_accounts` tables
+- Account creation uses temporary email addresses from testmail.app service
+- Puppeteer automation handles form filling and account creation on felo.ai
+- All account data is stored in the D1 database via Worker API
+
+## Testmail.app Configuration
+
+The worker uses testmail.app for generating temporary email addresses. To configure:
+
+1. **Sign up at [testmail.app](https://testmail.app/)** and get your:
+   - API Key (from account settings)
+   - Namespace (assigned to your account)
+
+2. **For local development**, create a `.dev.vars` file:
+   ```bash
+   cp .dev.vars.example .dev.vars
+   ```
+   Then edit `.dev.vars` and replace the placeholder values:
+   ```
+   TESTMAIL_API_KEY=your-actual-api-key
+   TESTMAIL_NAMESPACE=your-actual-namespace
+   ```
+
+3. **For production**, set both as secrets:
+   ```bash
+   wrangler secret put TESTMAIL_API_KEY
+   wrangler secret put TESTMAIL_NAMESPACE
+   ```
+   Enter your API key and namespace when prompted.
+
+**Note:** 
+- `.dev.vars` is gitignored and won't be committed. The `.dev.vars.example` file serves as a template.
+- `TESTMAIL_NAMESPACE` is required for generating email addresses.
+- `TESTMAIL_API_KEY` is optional but recommended if you want to retrieve emails later using the API.
+- Email format: `namespace.randomtag@inbox.testmail.app`
+
+## Local Puppeteer Setup
+
+The account creation script uses regular Puppeteer running on your local machine:
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Make sure the Worker is running:**
+   ```bash
+   npm run dev
+   ```
+
+3. **Run the account creation script:**
+   ```bash
+   npm run create-account
+   ```
+
+The script will:
+- Launch a browser window on your machine
+- Automate the account creation process
+- Save the account to D1 via the Worker API
+
+**Note:** Make sure you have Chrome/Chromium installed for Puppeteer to work.
 
