@@ -727,10 +727,25 @@ async function main() {
     
     // Launch browser
     console.log(`Launching browser in ${PUPPETEER_HEADLESS ? 'headless' : 'visible'} mode...`);
+    
+    // Prepare launch args
+    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    
+    if (!PUPPETEER_HEADLESS) {
+      launchArgs.push('--start-maximized');
+    } else {
+      // Additional flags for headless mode in CI environments
+      launchArgs.push(
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer'
+      );
+    }
+    
     browser = await puppeteer.launch({
       headless: PUPPETEER_HEADLESS,
       defaultViewport: null,
-      args: ['--start-maximized'],
+      args: launchArgs,
     });
     
     // Create account on felo.ai
