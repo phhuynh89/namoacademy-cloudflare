@@ -202,3 +202,32 @@ The script will:
 
 **Note:** Make sure you have Chrome/Chromium installed for Puppeteer to work.
 
+## GitHub Actions Automation
+
+You can automate account creation using GitHub Actions. The workflow is configured to run on a schedule.
+
+### Setup GitHub Actions
+
+1. **Add GitHub Secrets** (Repository → Settings → Secrets and variables → Actions):
+   - `TESTMAIL_API_KEY` - Your testmail.app API key
+   - `TESTMAIL_NAMESPACE` - Your testmail.app namespace  
+   - `WORKER_URL` - Your deployed Cloudflare Worker URL
+
+2. **Configure Schedule** (optional):
+   Edit `.github/workflows/create-account.yml` to change the cron schedule:
+   ```yaml
+   schedule:
+     - cron: '* * * * *'  # Every minute (default)
+   ```
+
+3. **Manual Trigger**:
+   - Go to Actions tab → "Create Felo Account" → "Run workflow"
+
+The workflow will:
+- Run Puppeteer in headless mode
+- Create accounts automatically
+- Upload logs as artifacts
+- Continue on errors (won't fail the workflow)
+
+See `.github/workflows/README.md` for more details.
+
