@@ -102,7 +102,7 @@ export default {
       
       // Get all accounts
       if (path === "/api/accounts" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id, email, created_at, status, login_at, credits FROM felo_accounts ORDER BY id DESC").all();
+        const result = await env.DB.prepare("SELECT id, email, password created_at, status, login_at, credits FROM felo_accounts ORDER BY id DESC").all();
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
