@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS felo_accounts (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   status TEXT NOT NULL DEFAULT 'created',
   error TEXT,
+  login_at DATETIME,
+  credits INTEGER DEFAULT 200,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

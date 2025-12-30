@@ -1,218 +1,129 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787 to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import type { Env } from "./types";
+import { handleCorsPreflight, errorResponse } from "./utils/cors";
+import { Router } from "./utils/router";
+import { HealthController } from "./controllers/health.controller";
+import { AccountController } from "./controllers/account.controller";
+import { ItemController } from "./controllers/item.controller";
+import { BoomlifyController } from "./controllers/boomlify.controller";
+import { CreditService } from "./services/credit.service";
 
-export interface Env {
-  // D1 Database binding
-  DB: D1Database;
+// Initialize controllers
+let healthController: HealthController;
+let accountController: AccountController;
+let itemController: ItemController;
+let boomlifyController: BoomlifyController;
+
+function initializeControllers(env: Env) {
+  healthController = new HealthController();
+  accountController = new AccountController(env);
+  itemController = new ItemController(env);
+  boomlifyController = new BoomlifyController(env);
 }
 
 export default {
+  /**
+   * Scheduled handler for daily credit reset (cron trigger)
+   */
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log("Running scheduled credit reset...");
+    const creditService = new CreditService(env);
+    const resetCount = await creditService.resetAllCredits();
+    console.log(`Reset credits for ${resetCount} API keys`);
+  },
+
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Initialize controllers
+    initializeControllers(env);
+
     const url = new URL(request.url);
     const path = url.pathname;
-
-    // CORS headers
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
+    const method = request.method;
 
     // Handle CORS preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+    if (method === "OPTIONS") {
+      return handleCorsPreflight()!;
     }
 
     try {
       // Health check endpoint
       if (path === "/" || path === "/health") {
-        return new Response(
-          JSON.stringify({ 
-            status: "ok", 
-            message: "Cloudflare Worker with D1 Database and Account Creator is running",
-            endpoints: {
-              health: "GET /health",
-              saveAccount: "POST /api/accounts/save",
-              getAccounts: "GET /api/accounts",
-              items: "GET /api/items"
-            }
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return healthController.getHealth();
       }
 
-      // Save account to D1 database (called by local Puppeteer script)
-      if (path === "/api/accounts/save" && request.method === "POST") {
-        const accountData = await request.json() as {
-          email: string;
-          password: string;
-          createdAt: string;
-          status: 'created' | 'failed';
-          error?: string;
-          loginAt?: string;
-          credits?: number;
-        };
-        
-        try {
-          await env.DB.prepare(
-            `INSERT INTO felo_accounts (email, password, created_at, status, error, login_at, credits)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-          )
-            .bind(
-              accountData.email,
-              accountData.password,
-              accountData.createdAt,
-              accountData.status,
-              accountData.error || null,
-              accountData.loginAt || null,
-              accountData.credits ?? 200
-            )
-            .run();
-          
-          return new Response(
-            JSON.stringify({ success: true, message: 'Account saved successfully' }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            }
-          );
-        } catch (error) {
-          console.error('Failed to save account:', error);
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: error instanceof Error ? error.message : String(error) 
-            }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 500,
-            }
-          );
+      // Account endpoints
+      if (path === "/api/accounts/save" && method === "POST") {
+        return await accountController.saveAccount(request);
+      }
+
+      if (path === "/api/accounts" && method === "GET") {
+        return await accountController.getAllAccounts();
+      }
+
+      // Item endpoints
+      if (path === "/api/items" && method === "GET") {
+        return await itemController.getAllItems();
+      }
+
+      if (path === "/api/items" && method === "POST") {
+        return await itemController.createItem(request);
+      }
+
+      if (path.startsWith("/api/items/") && method === "GET") {
+        const id = Router.extractId(path, "/api/items/");
+        if (id) {
+          return await itemController.getItemById(id);
         }
       }
-      
-      // Get all accounts
-      if (path === "/api/accounts" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT id, email, password created_at, status, login_at, credits FROM felo_accounts ORDER BY id DESC").all();
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
 
-      // Get all items
-      if (path === "/api/items" && request.method === "GET") {
-        const result = await env.DB.prepare("SELECT * FROM items ORDER BY id DESC").all();
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Get single item by ID
-      if (path.startsWith("/api/items/") && request.method === "GET") {
-        const id = path.split("/").pop();
-        const result = await env.DB.prepare("SELECT * FROM items WHERE id = ?").bind(id).first();
-        
-        if (!result) {
-          return new Response(JSON.stringify({ error: "Item not found" }), {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      if (path.startsWith("/api/items/") && method === "PUT") {
+        const id = Router.extractId(path, "/api/items/");
+        if (id) {
+          return await itemController.updateItem(id, request);
         }
-
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
 
-      // Create new item
-      if (path === "/api/items" && request.method === "POST") {
-        const body = await request.json() as { name?: string; description?: string };
-        
-        if (!body.name) {
-          return new Response(JSON.stringify({ error: "Name is required" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      if (path.startsWith("/api/items/") && method === "DELETE") {
+        const id = Router.extractId(path, "/api/items/");
+        if (id) {
+          return await itemController.deleteItem(id);
         }
-
-        const result = await env.DB.prepare(
-          "INSERT INTO items (name, description) VALUES (?, ?) RETURNING *"
-        )
-          .bind(body.name, body.description || null)
-          .first();
-
-        return new Response(JSON.stringify(result), {
-          status: 201,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
 
-      // Update item
-      if (path.startsWith("/api/items/") && request.method === "PUT") {
-        const id = path.split("/").pop();
-        const body = await request.json() as { name?: string; description?: string };
-
-        const result = await env.DB.prepare(
-          "UPDATE items SET name = ?, description = ? WHERE id = ? RETURNING *"
-        )
-          .bind(body.name, body.description || null, id)
-          .first();
-
-        if (!result) {
-          return new Response(JSON.stringify({ error: "Item not found" }), {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      // Boomlify endpoints
+      if (path === "/api/boomlify/keys" && method === "GET") {
+        return await boomlifyController.listKeys();
       }
 
-      // Delete item
-      if (path.startsWith("/api/items/") && request.method === "DELETE") {
-        const id = path.split("/").pop();
-        const result = await env.DB.prepare("DELETE FROM items WHERE id = ? RETURNING *")
-          .bind(id)
-          .first();
+      if (path === "/api/boomlify/keys" && method === "POST") {
+        return await boomlifyController.createKey(request);
+      }
 
-        if (!result) {
-          return new Response(JSON.stringify({ error: "Item not found" }), {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      if (path === "/api/boomlify/temp-mail" && method === "POST") {
+        return await boomlifyController.getTempMail(request);
+      }
+
+      if (path.startsWith("/api/boomlify/keys/") && path.endsWith("/credits") && method === "GET") {
+        const id = Router.extractIdWithSuffix(path, "/api/boomlify/keys/", "/credits");
+        if (id) {
+          return await boomlifyController.checkCredits(id);
         }
+      }
 
-        return new Response(JSON.stringify({ message: "Item deleted", item: result }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (path.startsWith("/api/boomlify/keys/") && path.endsWith("/reset") && method === "POST") {
+        const id = Router.extractIdWithSuffix(path, "/api/boomlify/keys/", "/reset");
+        if (id) {
+          return await boomlifyController.resetCredits(id);
+        }
       }
 
       // 404 for unknown routes
-      return new Response(JSON.stringify({ error: "Not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Not found", 404);
     } catch (error) {
       console.error("Error:", error);
-      return new Response(
-        JSON.stringify({ error: "Internal server error", message: error instanceof Error ? error.message : String(error) }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
       );
     }
   },
 };
-

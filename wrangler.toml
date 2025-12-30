@@ -15,6 +15,10 @@ database_id = "ec41096b-960f-4239-afcf-9e47d3f8430b"
 #   wrangler secret put TESTMAIL_API_KEY
 #   wrangler secret put TESTMAIL_NAMESPACE
 
+# Cron trigger for daily credit reset (runs at midnight UTC)
+[triggers]
+crons = ["0 0 * * *"]
+
 # For local development
 [env.development]
 [[env.development.d1_databases]]
