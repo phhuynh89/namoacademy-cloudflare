@@ -23,8 +23,6 @@ if (fs.existsSync(devVarsPath)) {
   });
 }
 
-const TESTMAIL_API_KEY = process.env.TESTMAIL_API_KEY || '';
-const TESTMAIL_NAMESPACE = process.env.TESTMAIL_NAMESPACE || '';
 const WORKER_URL = process.env.WORKER_URL || 'http://localhost:8787';
 const PUPPETEER_HEADLESS = process.env.PUPPETEER_HEADLESS === 'true' || process.env.PUPPETEER_HEADLESS === '1';
 const ACCOUNTS_PER_RUN = parseInt(process.env.ACCOUNTS_PER_RUN || '1', 10);
@@ -47,64 +45,94 @@ interface AccountData {
 }
 
 /**
- * Get a temporary email address from testmail.app
+ * Get a temporary email address from Boomlify API via Worker
+ * Returns both email and email ID for later message retrieval
  */
-function getTempEmail(): string {
-  if (!TESTMAIL_NAMESPACE) {
-    throw new Error('TESTMAIL_NAMESPACE is required. Please set it in .dev.vars');
+async function getTempEmail(): Promise<{ email: string; emailId: string }> {
+  if (!WORKER_URL) {
+    throw new Error('WORKER_URL is required. Please set it in .dev.vars');
   }
   
-  // Generate shorter tag: 8 characters from random string + 4 characters from timestamp
-  const randomPart = Math.random().toString(36).substring(2, 10);
-  const timePart = Date.now().toString(36).slice(-4);
-  const randomTag = randomPart + timePart;
-  
-  return `${TESTMAIL_NAMESPACE}.${randomTag}@inbox.testmail.app`;
-}
-
-/**
- * Extract tag from testmail.app email address
- */
-function extractTagFromEmail(email: string): string | null {
   try {
-    const match = email.match(/^[^.]+\.([^@]+)@inbox\.testmail\.app$/);
-    return match ? match[1] : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
- * Retrieve emails from testmail.app using the API
- */
-async function getEmailsFromTestmail(
-  apiKey: string,
-  namespace: string,
-  tag: string
-): Promise<any> {
-  try {
-    const url = `https://api.testmail.app/api/json?apikey=${apiKey}&namespace=${namespace}&tag=${tag}`;
-    const response = await fetch(url);
+    const url = `${WORKER_URL}/api/boomlify/temp-mail`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     
     if (!response.ok) {
-      throw new Error(`Testmail API error: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      throw new Error(`Boomlify API error: ${response.status} - ${errorData.message || response.statusText}`);
     }
     
-    const data = await response.json();
-    return data;
+    const data = await response.json() as { 
+      success?: boolean;
+      email?: { 
+        id?: string; 
+        address?: string; 
+        expires_at?: string;
+      }; 
+      credits_remaining?: number;
+    };
+    
+    if (!data.success || !data.email || !data.email.address || !data.email.id) {
+      throw new Error('No email address or ID returned from Boomlify API');
+    }
+    
+    console.log(`✓ Got temp email from Boomlify: ${data.email.address}`);
+    console.log(`  Email ID: ${data.email.id}`);
+    console.log(`  Expires at: ${data.email.expires_at}`);
+    if (data.credits_remaining !== undefined) {
+      console.log(`  Credits remaining: ${data.credits_remaining}`);
+    }
+    
+    return {
+      email: data.email.address,
+      emailId: data.email.id,
+    };
   } catch (error) {
-    console.error('Failed to retrieve emails from testmail.app:', error);
+    console.error('Failed to get temp email from Boomlify API:', error);
     throw error;
   }
 }
 
 /**
- * Wait for OTP code from testmail.app
+ * Retrieve messages from Boomlify API via Worker
+ */
+async function getMessagesFromBoomlify(emailId: string): Promise<any> {
+  if (!WORKER_URL) {
+    throw new Error('WORKER_URL is required. Please set it in .dev.vars');
+  }
+  
+  try {
+    const url = `${WORKER_URL}/api/boomlify/messages/${emailId}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      throw new Error(`Boomlify API error: ${response.status} - ${errorData.message || response.statusText}`);
+    }
+    
+    const data = await response.json() as any;
+    return data;
+  } catch (error) {
+    console.error('Failed to retrieve messages from Boomlify API:', error);
+    throw error;
+  }
+}
+
+/**
+ * Wait for OTP code from Boomlify API via Worker
  */
 async function waitForOTP(
-  apiKey: string,
-  namespace: string,
-  tag: string,
+  emailId: string,
   timeout: number = 60000
 ): Promise<string> {
   const startTime = Date.now();
@@ -112,19 +140,47 @@ async function waitForOTP(
   
   while (Date.now() - startTime < timeout) {
     try {
-      const data = await getEmailsFromTestmail(apiKey, namespace, tag);
+      const data = await getMessagesFromBoomlify(emailId) as {
+        success?: boolean;
+        messages?: Array<{
+          id?: string;
+          subject?: string;
+          text?: string;
+          html?: string;
+          from?: string;
+          to?: string;
+          created_at?: string;
+          [key: string]: any;
+        }>;
+        email?: {
+          id: string;
+          address: string;
+          message_count: number;
+        };
+      };
       
-      if (data && data.emails && data.emails.length > 0) {
-        for (const email of data.emails) {
-          const subject = email.subject || '';
-          const text = email.text || email.html || '';
-          const otpMatch = (subject + ' ' + text).match(/\b(\d{4,6})\b/);
+      // Check if response is successful and has messages
+      if (data.success && data.messages && data.messages.length > 0) {
+        for (const message of data.messages) {
+          const subject = message.subject || '';
+          const text = message.text || message.html || '';
+          const fullText = (subject + ' ' + text).toLowerCase();
+          
+          // Look for OTP patterns: 4-6 digit codes
+          const otpMatch = fullText.match(/\b(\d{4,6})\b/);
           if (otpMatch) {
             const otp = otpMatch[1];
             console.log(`✓ Found OTP in email: ${otp}`);
             return otp;
           }
         }
+      }
+      
+      // Log progress
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.floor((timeout - (Date.now() - startTime)) / 1000);
+      if (elapsed % 9 === 0) { // Log every 9 seconds (every 3 checks)
+        console.log(`Waiting for OTP email... (${remaining}s remaining)`);
       }
       
       await delay(checkInterval);
@@ -443,23 +499,22 @@ async function waitForElementBySelectors(
  */
 async function verifyOTP(
   page: any,
-  email: string
+  emailId: string
 ): Promise<boolean> {
   console.log('Waiting for OTP modal...');
   await delay(2000);
   
-  if (!TESTMAIL_API_KEY) {
-    console.warn('⚠ TESTMAIL_API_KEY not set, cannot retrieve OTP automatically');
+  if (!WORKER_URL) {
+    console.warn('⚠ WORKER_URL not set, cannot retrieve OTP automatically');
     return false;
   }
   
-  const tag = extractTagFromEmail(email);
-  if (!tag) {
-    console.warn('⚠ Could not extract tag from email address');
+  if (!emailId) {
+    console.warn('⚠ Email ID not provided, cannot retrieve OTP');
     return false;
   }
   
-  const otpPromise = waitForOTP(TESTMAIL_API_KEY, TESTMAIL_NAMESPACE, tag, 60000);
+  const otpPromise = waitForOTP(emailId, 60000);
   
   const otpInputSelectors = [
     'input[type="text"][maxlength="6"]',
@@ -605,7 +660,8 @@ async function checkAndClickClaimDiv(page: any): Promise<boolean> {
 async function createFeloAccount(
   browser: any,
   email: string,
-  password: string
+  password: string,
+  emailId: string
 ): Promise<{ success: boolean; accountId?: string; error?: string }> {
   let page;
   try {
@@ -647,7 +703,7 @@ async function createFeloAccount(
     // Step 9: Verify OTP if needed (only for new registrations)
     if (!emailLoginClicked && registerClicked) {
       try {
-        await verifyOTP(page, email);
+        await verifyOTP(page, emailId);
       } catch (error) {
         console.warn('⚠ OTP verification failed or skipped:', error);
       }
@@ -745,14 +801,13 @@ async function createSingleAccount(): Promise<{ success: boolean; email?: string
                      Math.random().toString(36).substring(2, 15) + 
                      Math.random().toString(36).substring(2, 15) + 'A1!';
     
-    // Get temp email from testmail.app
-    console.log('Getting temp email from testmail.app...');
-    const email = getTempEmail();
-    console.log(`Generated email: ${email}`);
+    // Get temp email from Boomlify API via Worker
+    console.log('Getting temp email from Boomlify API...');
+    const { email, emailId } = await getTempEmail();
     
     // Create account on felo.ai
     console.log('Creating account on felo.ai...');
-    const result = await createFeloAccount(browser, email, password);
+    const result = await createFeloAccount(browser, email, password, emailId);
     
     // Prepare account data
     const accountData: AccountData = {
@@ -803,8 +858,8 @@ async function createSingleAccount(): Promise<{ success: boolean; email?: string
  * Main function
  */
 async function main() {
-  if (!TESTMAIL_NAMESPACE) {
-    console.error('Error: TESTMAIL_NAMESPACE is not set in .dev.vars file');
+  if (!WORKER_URL) {
+    console.error('Error: WORKER_URL is not set in .dev.vars file');
     process.exit(1);
   }
   

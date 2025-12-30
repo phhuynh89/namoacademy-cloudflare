@@ -68,13 +68,13 @@ export class BoomlifyController {
       }
 
       // Get temp mail from Boomlify API using the selected key
-      const tempMail = await this.boomlifyService.createTempMail(keyRecord.api_key);
+      const tempMailResponse = await this.boomlifyService.createTempMail(keyRecord.api_key);
 
       // Deduct 1 credit
       const newCredits = await this.creditService.deductCredits(keyRecord.id, 1);
 
       return jsonResponse({
-        ...tempMail,
+        ...tempMailResponse,
         api_key_id: keyRecord.id,
         credits_remaining: newCredits,
       });
@@ -134,6 +134,41 @@ export class BoomlifyController {
       message: "Credits reset successfully",
       credits: 50,
     });
+  }
+
+  /**
+   * GET /api/boomlify/messages/:emailId - Get messages for a temp email
+   * Automatically selects an API key from database with credits > 0
+   */
+  async getMessages(emailId: string): Promise<Response> {
+    try {
+      // Find an available API key with credits > 0
+      const keyRecord = await this.keyService.findAvailableKey();
+
+      if (!keyRecord) {
+        return jsonResponse(
+          {
+            error: "No available API keys",
+            message: "No API keys with credits > 0 found.",
+          },
+          503
+        );
+      }
+
+      // Get messages from Boomlify API
+      const messages = await this.boomlifyService.getMessages(keyRecord.api_key, emailId);
+
+      return jsonResponse(messages);
+    } catch (error) {
+      console.error("Error getting messages:", error);
+      return jsonResponse(
+        {
+          error: "Failed to get messages",
+          message: error instanceof Error ? error.message : String(error),
+        },
+        500
+      );
+    }
   }
 }
 

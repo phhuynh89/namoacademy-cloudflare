@@ -13,9 +13,57 @@ export interface BoomlifyApiKey {
 }
 
 export interface BoomlifyTempMailResponse {
-  email: string;
-  id: string;
-  expires_at?: string;
+  success: boolean;
+  email: {
+    id: string;
+    address: string;
+    domain: string;
+    time_tier: string;
+    expires_at: string;
+    created_at: string;
+    is_custom_domain: boolean;
+    time_remaining: {
+      total_ms: number;
+      minutes: number;
+      seconds: number;
+      human_readable: string;
+    };
+  };
+  meta: {
+    user_id: string;
+    tier: string;
+    request_time: string;
+  };
+}
+
+export interface BoomlifyMessagesResponse {
+  success: boolean;
+  messages: Array<{
+    id?: string;
+    subject?: string;
+    text?: string;
+    html?: string;
+    from?: string;
+    to?: string;
+    created_at?: string;
+    [key: string]: any;
+  }>;
+  email: {
+    id: string;
+    address: string;
+    message_count: number;
+  };
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+    has_more: boolean;
+  };
+  meta: {
+    user_id: string;
+    tier: string;
+    request_time: string;
+  };
 }
 
 export interface AccountData {

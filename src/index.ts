@@ -116,6 +116,13 @@ export default {
         }
       }
 
+      if (path.startsWith("/api/boomlify/messages/") && method === "GET") {
+        const emailId = Router.extractId(path, "/api/boomlify/messages/");
+        if (emailId) {
+          return await boomlifyController.getMessages(emailId);
+        }
+      }
+
       // 404 for unknown routes
       return errorResponse("Not found", 404);
     } catch (error) {
