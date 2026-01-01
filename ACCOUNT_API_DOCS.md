@@ -180,7 +180,7 @@ The `felo_accounts` table stores:
 
 **Note:** 
 - Returns accounts where `felo_user_token` is NULL, `expire_date` is NULL, or `expire_date` is in the past
-- Limited to 100 results
+- Limit is configurable via `ACCOUNTS_WITHOUT_COOKIE_LIMIT` environment variable (default: 5)
 - Ordered by ID (newest first)
 - Useful for finding accounts that need cookie refresh
 
@@ -375,12 +375,33 @@ The migration files add:
 
 ---
 
+## Environment Variables
+
+### ACCOUNTS_WITHOUT_COOKIE_LIMIT
+
+Controls the maximum number of accounts returned by `GET /api/accounts/without-cookie`.
+
+- **Type:** String (parsed as integer)
+- **Default:** 5
+- **Example:** `ACCOUNTS_WITHOUT_COOKIE_LIMIT=10`
+
+To set in production:
+```bash
+wrangler secret put ACCOUNTS_WITHOUT_COOKIE_LIMIT
+```
+
+For local development, add to `.dev.vars`:
+```
+ACCOUNTS_WITHOUT_COOKIE_LIMIT=5
+```
+
+---
+
 ## Notes
 
 - All endpoints include CORS headers for cross-origin requests
 - Passwords are stored in plain text (consider encryption for production)
 - Cookie expiration dates should be in ISO 8601 format (UTC)
-- The `without-cookie` endpoint returns up to 100 accounts
 - Account IDs are auto-incremented integers
 - Email addresses must be unique
 

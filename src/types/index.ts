@@ -1,5 +1,6 @@
 export interface Env {
   DB: D1Database;
+  ACCOUNTS_WITHOUT_COOKIE_LIMIT?: string; // Limit for accounts without cookie query (default: 5)
 }
 
 export interface BoomlifyApiKey {

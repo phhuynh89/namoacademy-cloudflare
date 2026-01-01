@@ -101,18 +101,24 @@ export class AccountService {
   }
 
   /**
-   * Get accounts without cookie or with expired cookie (limit 100)
+   * Get accounts without cookie or with expired cookie
+   * Limit is configurable via ACCOUNTS_WITHOUT_COOKIE_LIMIT env variable (default: 5)
    */
   async getAccountsWithoutCookie(): Promise<any[]> {
     const now = new Date().toISOString();
+    // Get limit from environment variable, default to 5 if not set
+    const limit = this.env.ACCOUNTS_WITHOUT_COOKIE_LIMIT 
+      ? parseInt(this.env.ACCOUNTS_WITHOUT_COOKIE_LIMIT, 10) 
+      : 5;
+    
     const result = await this.env.DB.prepare(
       `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, felo_user_token, expire_date 
        FROM felo_accounts 
        WHERE felo_user_token IS NULL OR expire_date IS NULL OR expire_date < ?
        ORDER BY id DESC 
-       LIMIT 100`
+       LIMIT ?`
     )
-      .bind(now)
+      .bind(now, limit)
       .all();
     return result.results || [];
   }
