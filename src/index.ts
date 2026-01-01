@@ -5,7 +5,6 @@ import { HealthController } from "./controllers/health.controller";
 import { AccountController } from "./controllers/account.controller";
 import { ItemController } from "./controllers/item.controller";
 import { BoomlifyController } from "./controllers/boomlify.controller";
-import { CreditService } from "./services/credit.service";
 
 // Initialize controllers
 let healthController: HealthController;
@@ -21,16 +20,6 @@ function initializeControllers(env: Env) {
 }
 
 export default {
-  /**
-   * Scheduled handler for daily credit reset (cron trigger)
-   */
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    console.log("Running scheduled credit reset...");
-    const creditService = new CreditService(env);
-    const resetCount = await creditService.resetAllCredits();
-    console.log(`Reset credits for ${resetCount} API keys`);
-  },
-
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Initialize controllers
     initializeControllers(env);
@@ -57,6 +46,35 @@ export default {
 
       if (path === "/api/accounts" && method === "GET") {
         return await accountController.getAllAccounts();
+      }
+
+      if (path === "/api/accounts/with-cookie" && method === "GET") {
+        return await accountController.getAnyAccount();
+      }
+
+      if (path === "/api/accounts/without-cookie" && method === "GET") {
+        return await accountController.getAccountsWithoutCookie();
+      }
+
+      if (path.startsWith("/api/accounts/") && path.endsWith("/cookie") && method === "PUT") {
+        const id = Router.extractIdWithSuffix(path, "/api/accounts/", "/cookie");
+        if (id) {
+          return await accountController.updateAccountCookie(id, request);
+        }
+      }
+
+      if (path.startsWith("/api/accounts/") && method === "GET") {
+        const id = Router.extractId(path, "/api/accounts/");
+        if (id) {
+          return await accountController.getAccountById(id);
+        }
+      }
+
+      if (path.startsWith("/api/accounts/") && method === "DELETE") {
+        const id = Router.extractId(path, "/api/accounts/");
+        if (id) {
+          return await accountController.deleteAccount(id);
+        }
       }
 
       // Item endpoints

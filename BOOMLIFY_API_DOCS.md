@@ -132,12 +132,9 @@ The `boomlify_api_keys` table stores:
 **Error Responses:**
 - `404 Not Found`: API key not found
 
-## Automatic Credit Reset
+## Credit Reset
 
-Credits are automatically reset to 50 every 24 hours using a Cloudflare Workers cron trigger:
-
-- **Cron Schedule:** `0 0 * * *` (runs at midnight UTC daily)
-- **Handler:** The `scheduled` function in the worker automatically resets credits for all API keys that have passed 24 hours since their last reset
+Credits can be manually reset using the `POST /api/boomlify/keys/:id/reset` endpoint. The system also automatically checks and resets credits when checking credit status or selecting an API key for use (if 24 hours have passed since the last reset).
 
 ## Credit System
 
@@ -198,7 +195,7 @@ curl https://your-worker.workers.dev/api/boomlify/keys
 ## Notes
 
 - Credits are checked and reset automatically on each request if 24 hours have passed
-- The cron job runs daily at midnight UTC to ensure all credits are reset
 - Each temp mail request costs exactly 1 credit
-- If credits are insufficient, the request will fail with a 402 status code
+- If credits are insufficient, the request will fail with a 503 status code
+- Manual credit reset is available via the `POST /api/boomlify/keys/:id/reset` endpoint
 

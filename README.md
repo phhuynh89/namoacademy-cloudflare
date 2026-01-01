@@ -98,11 +98,17 @@ This will:
 - `DELETE /api/items/:id` - Delete item
 
 ### Account Management API
-- `POST /api/accounts/save` - Save account data to D1 database (called by local Puppeteer script)
-  - Body: `{ email, password, createdAt, status, error? }`
-  - Returns: `{ success: boolean, message: string }`
-- `GET /api/accounts` - Get all saved accounts
-  - Returns: List of accounts (without passwords)
+
+See [ACCOUNT_API_DOCS.md](./ACCOUNT_API_DOCS.md) for complete documentation.
+
+**Available Endpoints:**
+- `POST /api/accounts/save` - Save account data to D1 database
+- `GET /api/accounts` - Get all accounts
+- `GET /api/accounts/with-cookie` - Get any single account with valid cookie (limit 1)
+- `GET /api/accounts/:id` - Get account by ID
+- `GET /api/accounts/without-cookie` - Get accounts without cookie or expired cookie (limit 100)
+- `PUT /api/accounts/:id/cookie` - Update account cookie (felo_user_token and expire_date)
+- `DELETE /api/accounts/:id` - Delete account
 
 **Note:** Account creation is done via the local Puppeteer script (`npm run create-account`), not through the Worker API.
 
