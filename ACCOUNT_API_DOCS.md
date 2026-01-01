@@ -17,6 +17,7 @@ The `felo_accounts` table stores:
 - `credits`: Account credits (default: 200)
 - `felo_user_token`: Authentication cookie token (felo-user-token)
 - `expire_date`: Cookie expiration date
+- `last_used_at`: Timestamp when account was last selected (prevents duplicate selection)
 - `updated_at`: Last update timestamp
 
 ## API Endpoints
@@ -94,7 +95,8 @@ The `felo_accounts` table stores:
   "credits": 200,
   "updated_at": "2024-01-15T12:00:00Z",
   "felo_user_token": "abc123xyz...",
-  "expire_date": "2024-12-31T23:59:59Z"
+  "expire_date": "2024-12-31T23:59:59Z",
+  "last_used_at": "2024-01-15T12:05:00Z"
 }
 ```
 
@@ -104,8 +106,10 @@ The `felo_accounts` table stores:
 **Note:** 
 - Returns a single account (limit 1) that has a valid (non-expired) cookie
 - Only returns accounts where `felo_user_token` is NOT NULL, `expire_date` is NOT NULL, and `expire_date` is in the future
-- Ordered by ID (newest first)
-- Includes all fields including cookie information
+- **Duplicate Prevention:** Excludes accounts used in the last 5 minutes to prevent duplicate selection when multiple requests come in simultaneously
+- Orders by `last_used_at` (oldest first) to distribute load evenly across accounts
+- Immediately marks the selected account as used (`last_used_at` is updated) to prevent concurrent requests from selecting the same account
+- Includes all fields including cookie information and `last_used_at`
 
 ---
 
@@ -359,10 +363,15 @@ npm run db:migrate:local
 npm run db:migrate
 ```
 
-The migration file `0005_add_felo_cookie.sql` adds:
-- `felo_user_token` column (TEXT, nullable)
-- `expire_date` column (DATETIME, nullable)
-- Index on `expire_date` for faster queries
+The migration files add:
+- `0005_add_felo_cookie.sql`: 
+  - `felo_user_token` column (TEXT, nullable)
+  - `expire_date` column (DATETIME, nullable)
+  - Index on `expire_date` for faster queries
+- `0006_add_last_used_at.sql`:
+  - `last_used_at` column (DATETIME, nullable)
+  - Index on `last_used_at` for faster queries
+  - Used to prevent duplicate account selection when multiple requests come in simultaneously
 
 ---
 

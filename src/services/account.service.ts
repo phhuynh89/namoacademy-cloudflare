@@ -38,21 +38,42 @@ export class AccountService {
 
   /**
    * Get any single account with valid (non-expired) cookie (limit 1)
+   * Prevents duplicate selection by excluding accounts used in the last 5 minutes
+   * and immediately marking the selected account as used
    */
   async getAnyAccount(): Promise<any | null> {
     const now = new Date().toISOString();
+    // Exclude accounts used in the last 5 minutes to prevent duplicates
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    
+    // Select an account that hasn't been used recently
+    // Order by last_used_at (oldest first) to distribute load evenly
     const result = await this.env.DB.prepare(
-      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, felo_user_token, expire_date 
+      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, felo_user_token, expire_date, last_used_at
        FROM felo_accounts 
        WHERE felo_user_token IS NOT NULL 
          AND expire_date IS NOT NULL 
          AND expire_date > ?
-       ORDER BY id DESC 
+         AND (last_used_at IS NULL OR last_used_at < ?)
+       ORDER BY COALESCE(last_used_at, '1970-01-01') ASC, id DESC
        LIMIT 1`
     )
-      .bind(now)
+      .bind(now, fiveMinutesAgo)
       .first();
-    return result || null;
+    
+    if (!result) {
+      return null;
+    }
+    
+    // Immediately mark the account as used to prevent other concurrent requests from selecting it
+    // Use WHERE clause with id to ensure we only update if it's still the same account
+    await this.env.DB.prepare(
+      "UPDATE felo_accounts SET last_used_at = ? WHERE id = ?"
+    )
+      .bind(now, result.id)
+      .run();
+    
+    return result;
   }
 
   /**
