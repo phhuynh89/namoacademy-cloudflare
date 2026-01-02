@@ -31,7 +31,7 @@ export class CapCutAccountService {
    */
   async getAllAccounts(): Promise<any[]> {
     const result = await this.env.DB.prepare(
-      "SELECT id, email, password, created_at, status, login_at, credits FROM capcut_accounts ORDER BY id DESC"
+      "SELECT id, email, password, created_at, status, login_at, credits, last_used_at FROM capcut_accounts ORDER BY id DESC"
     ).all();
     return result.results || [];
   }
@@ -41,11 +41,49 @@ export class CapCutAccountService {
    */
   async getAccountById(id: string): Promise<any | null> {
     const result = await this.env.DB.prepare(
-      "SELECT id, email, password, created_at, status, error, login_at, credits, updated_at FROM capcut_accounts WHERE id = ?"
+      "SELECT id, email, password, created_at, status, error, login_at, credits, last_used_at, updated_at FROM capcut_accounts WHERE id = ?"
     )
       .bind(id)
       .first();
     return result || null;
+  }
+
+  /**
+   * Get any single CapCut account (limit 1)
+   * Prevents duplicate selection by excluding accounts used in the last 5 minutes
+   * and immediately marking the selected account as used
+   */
+  async getAnyAccount(): Promise<any | null> {
+    const now = new Date().toISOString();
+    // Exclude accounts used in the last 5 minutes to prevent duplicates
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    
+    // Select an account that hasn't been used recently and has status 'created'
+    // Order by last_used_at (oldest first) to distribute load evenly
+    const result = await this.env.DB.prepare(
+      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, last_used_at
+       FROM capcut_accounts 
+       WHERE status = 'created'
+         AND (last_used_at IS NULL OR last_used_at < ?)
+       ORDER BY COALESCE(last_used_at, '1970-01-01') ASC, id DESC
+       LIMIT 1`
+    )
+      .bind(fiveMinutesAgo)
+      .first();
+    
+    if (!result) {
+      return null;
+    }
+    
+    // Immediately mark the account as used to prevent other concurrent requests from selecting it
+    // Use WHERE clause with id to ensure we only update if it's still the same account
+    await this.env.DB.prepare(
+      "UPDATE capcut_accounts SET last_used_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    )
+      .bind(now, result.id)
+      .run();
+    
+    return result;
   }
 
   /**

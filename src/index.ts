@@ -89,6 +89,10 @@ export default {
         return await capcutAccountController.getAllAccounts();
       }
 
+      if (path === "/api/capcut-accounts/any" && method === "GET") {
+        return await capcutAccountController.getAnyAccount();
+      }
+
       if (path.startsWith("/api/capcut-accounts/") && method === "GET") {
         const id = Router.extractId(path, "/api/capcut-accounts/");
         if (id) {

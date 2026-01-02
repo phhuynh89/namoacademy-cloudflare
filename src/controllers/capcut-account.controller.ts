@@ -39,6 +39,25 @@ export class CapCutAccountController {
   }
 
   /**
+   * GET /api/capcut-accounts/any - Get any single CapCut account (prevents duplicates)
+   */
+  async getAnyAccount(): Promise<Response> {
+    try {
+      const account = await this.capcutAccountService.getAnyAccount();
+      if (!account) {
+        return errorResponse("No CapCut accounts available", 404);
+      }
+      return jsonResponse(account);
+    } catch (error) {
+      console.error("Failed to get CapCut account:", error);
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
+      );
+    }
+  }
+
+  /**
    * GET /api/capcut-accounts/:id - Get CapCut account by ID
    */
   async getAccountById(id: string): Promise<Response> {
