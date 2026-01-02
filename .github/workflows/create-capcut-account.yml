@@ -8,10 +8,10 @@ on:
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'  # Every 5 minutes, offset by 2
   # Allow manual triggering
   workflow_dispatch:
-  # Optional: Run on push to main (for testing)
-  # push:
-  #   branches:
-  #     - main
+  # Trigger on commits to trigger-action branch
+  push:
+    branches:
+      - trigger-action
 
 jobs:
   create-capcut-account:

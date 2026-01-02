@@ -2,7 +2,9 @@
 
 ## Available Scripts
 
-There are three scripts available for account creation:
+There are four scripts available:
+
+### Account Creation Scripts
 
 1. **`create-account-cron.sh`** - Generic script that accepts account type as parameter
    - Usage: `./scripts/create-account-cron.sh [felo|capcut]`
@@ -13,6 +15,13 @@ There are three scripts available for account creation:
 
 3. **`create-capcut-account-cron.sh`** - Dedicated script for CapCut account creation
    - Usage: `./scripts/create-capcut-account-cron.sh`
+
+### Workflow Trigger Script
+
+4. **`trigger-capcut-workflow.sh`** - Script to trigger CapCut account creation workflow via GitHub Actions
+   - Usage: `./scripts/trigger-capcut-workflow.sh`
+   - This script commits and pushes to the `trigger-action` branch to trigger the GitHub Actions workflow
+   - Automatically handles branch creation, commits, and pushes
 
 ## Setup Cronjob for Automatic Account Creation
 
@@ -86,6 +95,26 @@ tail -f logs/create-capcut-account-$(date +%Y%m%d).log
 - Make sure the worker is running (either locally or deployed) before the cronjob runs
 - For production, consider using the deployed worker URL in `.dev.vars`
 
+## Trigger GitHub Actions Workflow
+
+To manually trigger the CapCut account creation workflow via GitHub Actions:
+
+```bash
+./scripts/trigger-capcut-workflow.sh
+```
+
+This script will:
+1. Checkout or create the `trigger-action` branch
+2. Create/update a trigger file with timestamp
+3. Commit the changes
+4. Push to the remote repository
+5. Trigger the GitHub Actions workflow automatically
+
+**Note:** Make sure you have:
+- Git configured with proper credentials
+- Push access to the repository
+- The remote named `origin` (or modify the script to use your remote name)
+
 ## Troubleshooting
 
 If the cronjob doesn't work:
@@ -94,4 +123,11 @@ If the cronjob doesn't work:
 3. Check the log files for errors
 4. Verify `.dev.vars` exists and has correct values
 5. Make sure the worker is accessible at the URL specified in `WORKER_URL`
+
+If the workflow trigger script doesn't work:
+1. Verify you have git installed and configured
+2. Check that you have push access to the repository
+3. Ensure the remote is correctly configured (`git remote -v`)
+4. Check that you're in a git repository
+5. Verify the branch name matches the workflow trigger branch (`trigger-action`)
 
