@@ -77,6 +77,16 @@ export interface AccountData {
   credits?: number;
 }
 
+export interface CapCutAccountData {
+  email: string;
+  password: string;
+  createdAt: string;
+  status: 'created' | 'failed';
+  error?: string;
+  loginAt?: string;
+  credits?: number;
+}
+
 export interface Item {
   id: number;
   name: string;

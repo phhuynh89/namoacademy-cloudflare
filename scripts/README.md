@@ -1,17 +1,39 @@
 # Cronjob Scripts
 
+## Available Scripts
+
+There are three scripts available for account creation:
+
+1. **`create-account-cron.sh`** - Generic script that accepts account type as parameter
+   - Usage: `./scripts/create-account-cron.sh [felo|capcut]`
+   - Default: `felo` (for backward compatibility)
+
+2. **`create-felo-account-cron.sh`** - Dedicated script for Felo account creation
+   - Usage: `./scripts/create-felo-account-cron.sh`
+
+3. **`create-capcut-account-cron.sh`** - Dedicated script for CapCut account creation
+   - Usage: `./scripts/create-capcut-account-cron.sh`
+
 ## Setup Cronjob for Automatic Account Creation
 
-This script allows you to automatically run account creation every minute using a cronjob.
+These scripts allow you to automatically run account creation using a cronjob.
 
-### 1. Make the script executable (already done)
+### 1. Make the scripts executable (already done)
 ```bash
 chmod +x scripts/create-account-cron.sh
+chmod +x scripts/create-felo-account-cron.sh
+chmod +x scripts/create-capcut-account-cron.sh
 ```
 
 ### 2. Test the script manually
 ```bash
-./scripts/create-account-cron.sh
+# Test generic script with parameter
+./scripts/create-account-cron.sh felo
+./scripts/create-account-cron.sh capcut
+
+# Test dedicated scripts
+./scripts/create-felo-account-cron.sh
+./scripts/create-capcut-account-cron.sh
 ```
 
 ### 3. Set up the cronjob
@@ -21,14 +43,22 @@ Edit your crontab:
 crontab -e
 ```
 
-Add this line to run every minute:
+**Option 1: Using the generic script with parameters**
 ```bash
-* * * * * /Users/phuoc/Projects/namoacademy-cloudflare/scripts/create-account-cron.sh
+# Run Felo account creation every 5 minutes
+*/5 * * * * /Users/phuoc/Projects/namoacademy/namoacademy-cloudflare/scripts/create-account-cron.sh felo
+
+# Run CapCut account creation every 10 minutes
+*/10 * * * * /Users/phuoc/Projects/namoacademy/namoacademy-cloudflare/scripts/create-account-cron.sh capcut
 ```
 
-Or if you want to run it every 5 minutes:
+**Option 2: Using dedicated scripts**
 ```bash
-*/5 * * * * /Users/phuoc/Projects/namoacademy-cloudflare/scripts/create-account-cron.sh
+# Run Felo account creation every 5 minutes
+*/5 * * * * /Users/phuoc/Projects/namoacademy/namoacademy-cloudflare/scripts/create-felo-account-cron.sh
+
+# Run CapCut account creation every 10 minutes
+*/10 * * * * /Users/phuoc/Projects/namoacademy/namoacademy-cloudflare/scripts/create-capcut-account-cron.sh
 ```
 
 ### 4. Verify cronjob is set up
@@ -39,14 +69,20 @@ crontab -l
 ### 5. Check logs
 Logs are stored in the `logs/` directory:
 ```bash
-tail -f logs/create-account-$(date +%Y%m%d).log
+# Generic script logs
+tail -f logs/create-felo-account-$(date +%Y%m%d).log
+tail -f logs/create-capcut-account-$(date +%Y%m%d).log
+
+# Dedicated script logs
+tail -f logs/create-felo-account-$(date +%Y%m%d).log
+tail -f logs/create-capcut-account-$(date +%Y%m%d).log
 ```
 
 ## Notes
 
-- The script automatically creates a `logs/` directory if it doesn't exist
-- Each day gets its own log file: `create-account-YYYYMMDD.log`
-- The script checks for Node.js, npm, and .dev.vars before running
+- The scripts automatically create a `logs/` directory if it doesn't exist
+- Each day gets its own log file: `create-{type}-account-YYYYMMDD.log`
+- The scripts check for Node.js, npm, and .dev.vars before running
 - Make sure the worker is running (either locally or deployed) before the cronjob runs
 - For production, consider using the deployed worker URL in `.dev.vars`
 

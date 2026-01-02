@@ -1,10 +1,11 @@
-name: Create Felo Account
+name: Create CapCut Account
 
 on:
   # Run every 5 minutes (GitHub Actions minimum interval)
   # Note: GitHub Actions schedules use UTC time
+  # Running at :02 minutes offset to avoid conflicts with Felo workflow (which runs at :00)
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'  # Every 5 minutes, offset by 2
   # Allow manual triggering
   workflow_dispatch:
   # Optional: Run on push to main (for testing)
@@ -13,7 +14,7 @@ on:
   #     - main
 
 jobs:
-  create-account:
+  create-capcut-account:
     runs-on: ubuntu-latest
     
     steps:
@@ -93,15 +94,15 @@ jobs:
           ACCOUNTS_PER_RUN=${{ secrets.ACCOUNTS_PER_RUN || '1' }}
           EOF
 
-      - name: Run account creation
-        run: npm run felo-account-creator
+      - name: Run CapCut account creation
+        run: npm run capcut-account-creator
         continue-on-error: true
 
       - name: Upload logs (if any)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: account-creation-logs
+          name: capcut-account-creation-logs
           path: |
             logs/
           if-no-files-found: ignore

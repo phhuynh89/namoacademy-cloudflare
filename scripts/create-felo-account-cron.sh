@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# Script to create account via cronjob
-# This script runs the account creation process and logs the output
-# Usage: ./create-account-cron.sh [felo|capcut]
-# Default: felo (for backward compatibility)
+# Script to create Felo account via cronjob
+# This script runs the Felo account creation process and logs the output
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -12,21 +10,12 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Change to project directory
 cd "$PROJECT_DIR" || exit 1
 
-# Account type (default: felo for backward compatibility)
-ACCOUNT_TYPE="${1:-felo}"
-
-# Validate account type
-if [ "$ACCOUNT_TYPE" != "felo" ] && [ "$ACCOUNT_TYPE" != "capcut" ]; then
-    echo "ERROR: Invalid account type. Use 'felo' or 'capcut'"
-    exit 1
-fi
-
 # Set up log directory
 LOG_DIR="$PROJECT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
 # Log file with timestamp
-LOG_FILE="$LOG_DIR/create-${ACCOUNT_TYPE}-account-$(date +%Y%m%d).log"
+LOG_FILE="$LOG_DIR/create-felo-account-$(date +%Y%m%d).log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # Function to log messages
@@ -36,7 +25,7 @@ log_message() {
 
 # Start logging
 log_message "========================================="
-log_message "Starting ${ACCOUNT_TYPE} account creation process"
+log_message "Starting Felo account creation process"
 log_message "========================================="
 
 # Check if Node.js and npm are available
@@ -56,25 +45,19 @@ if [ ! -f "$PROJECT_DIR/.dev.vars" ]; then
     exit 1
 fi
 
-# Run the appropriate account creation script
-if [ "$ACCOUNT_TYPE" = "felo" ]; then
-    log_message "Running: npm run felo-account-creator"
-    npm run felo-account-creator >> "$LOG_FILE" 2>&1
-else
-    log_message "Running: npm run capcut-account-creator"
-    npm run capcut-account-creator >> "$LOG_FILE" 2>&1
-fi
-
+# Run the Felo account creation script
+log_message "Running: npm run felo-account-creator"
+npm run felo-account-creator >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then
-    log_message "${ACCOUNT_TYPE} account creation completed successfully"
+    log_message "Felo account creation completed successfully"
 else
-    log_message "${ACCOUNT_TYPE} account creation failed with exit code: $EXIT_CODE"
+    log_message "Felo account creation failed with exit code: $EXIT_CODE"
 fi
 
 log_message "========================================="
-log_message "Finished ${ACCOUNT_TYPE} account creation process"
+log_message "Finished Felo account creation process"
 log_message "========================================="
 echo "" >> "$LOG_FILE"
 

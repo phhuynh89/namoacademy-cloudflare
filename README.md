@@ -151,37 +151,6 @@ npm run deploy
 - Puppeteer automation handles form filling and account creation on felo.ai
 - All account data is stored in the D1 database via Worker API
 
-## Testmail.app Configuration
-
-The worker uses testmail.app for generating temporary email addresses. To configure:
-
-1. **Sign up at [testmail.app](https://testmail.app/)** and get your:
-   - API Key (from account settings)
-   - Namespace (assigned to your account)
-
-2. **For local development**, create a `.dev.vars` file:
-   ```bash
-   cp .dev.vars.example .dev.vars
-   ```
-   Then edit `.dev.vars` and replace the placeholder values:
-   ```
-   TESTMAIL_API_KEY=your-actual-api-key
-   TESTMAIL_NAMESPACE=your-actual-namespace
-   ```
-
-3. **For production**, set both as secrets:
-   ```bash
-   wrangler secret put TESTMAIL_API_KEY
-   wrangler secret put TESTMAIL_NAMESPACE
-   ```
-   Enter your API key and namespace when prompted.
-
-**Note:** 
-- `.dev.vars` is gitignored and won't be committed. The `.dev.vars.example` file serves as a template.
-- `TESTMAIL_NAMESPACE` is required for generating email addresses.
-- `TESTMAIL_API_KEY` is optional but recommended if you want to retrieve emails later using the API.
-- Email format: `namespace.randomtag@inbox.testmail.app`
-
 ## Local Puppeteer Setup
 
 The account creation script uses regular Puppeteer running on your local machine:
@@ -215,8 +184,6 @@ You can automate account creation using GitHub Actions. The workflow is configur
 ### Setup GitHub Actions
 
 1. **Add GitHub Secrets** (Repository → Settings → Secrets and variables → Actions):
-   - `TESTMAIL_API_KEY` - Your testmail.app API key
-   - `TESTMAIL_NAMESPACE` - Your testmail.app namespace  
    - `WORKER_URL` - Your deployed Cloudflare Worker URL
    - `ACCOUNTS_PER_RUN` (optional) - Number of accounts to create per run (default: 1)
 

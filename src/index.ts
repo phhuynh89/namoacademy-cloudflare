@@ -3,18 +3,21 @@ import { handleCorsPreflight, errorResponse } from "./utils/cors";
 import { Router } from "./utils/router";
 import { HealthController } from "./controllers/health.controller";
 import { AccountController } from "./controllers/account.controller";
+import { CapCutAccountController } from "./controllers/capcut-account.controller";
 import { ItemController } from "./controllers/item.controller";
 import { BoomlifyController } from "./controllers/boomlify.controller";
 
 // Initialize controllers
 let healthController: HealthController;
 let accountController: AccountController;
+let capcutAccountController: CapCutAccountController;
 let itemController: ItemController;
 let boomlifyController: BoomlifyController;
 
 function initializeControllers(env: Env) {
   healthController = new HealthController();
   accountController = new AccountController(env);
+  capcutAccountController = new CapCutAccountController(env);
   itemController = new ItemController(env);
   boomlifyController = new BoomlifyController(env);
 }
@@ -74,6 +77,29 @@ export default {
         const id = Router.extractId(path, "/api/accounts/");
         if (id) {
           return await accountController.deleteAccount(id);
+        }
+      }
+
+      // CapCut Account endpoints
+      if (path === "/api/capcut-accounts/save" && method === "POST") {
+        return await capcutAccountController.saveAccount(request);
+      }
+
+      if (path === "/api/capcut-accounts" && method === "GET") {
+        return await capcutAccountController.getAllAccounts();
+      }
+
+      if (path.startsWith("/api/capcut-accounts/") && method === "GET") {
+        const id = Router.extractId(path, "/api/capcut-accounts/");
+        if (id) {
+          return await capcutAccountController.getAccountById(id);
+        }
+      }
+
+      if (path.startsWith("/api/capcut-accounts/") && method === "DELETE") {
+        const id = Router.extractId(path, "/api/capcut-accounts/");
+        if (id) {
+          return await capcutAccountController.deleteAccount(id);
         }
       }
 

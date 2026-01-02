@@ -8,13 +8,6 @@ binding = "DB"
 database_name = "namoacademy-db"
 database_id = "ec41096b-960f-4239-afcf-9e47d3f8430b"
 
-# Optional: Configure testmail.app API key and namespace
-# To use testmail.app, sign up at https://testmail.app/ and get your API key and namespace
-# For local dev: Use .dev.vars file (see .dev.vars.example)
-# For production: Set as secrets: 
-#   wrangler secret put TESTMAIL_API_KEY
-#   wrangler secret put TESTMAIL_NAMESPACE
-
 # For local development
 [env.development]
 [[env.development.d1_databases]]
