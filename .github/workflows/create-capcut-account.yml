@@ -4,8 +4,6 @@ on:
   # Run every 5 minutes (GitHub Actions minimum interval)
   # Note: GitHub Actions schedules use UTC time
   # Running at :02 minutes offset to avoid conflicts with Felo workflow (which runs at :00)
-  schedule:
-    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'  # Every 5 minutes, offset by 2
   # Allow manual triggering
   workflow_dispatch:
   # Trigger on commits to trigger-action branch
