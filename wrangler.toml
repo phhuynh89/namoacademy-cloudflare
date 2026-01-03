@@ -14,6 +14,10 @@ database_id = "ec41096b-960f-4239-afcf-9e47d3f8430b"
 binding = "COOKIE_BUCKET"
 bucket_name = "capcut-cookies"
 
+# Cron trigger for credit reset - runs every 15 minutes (*/15 * * * *)
+[triggers]
+crons = ["*/15 * * * *"]
+
 # For local development
 [env.development]
 [[env.development.d1_databases]]

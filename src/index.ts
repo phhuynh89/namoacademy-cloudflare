@@ -6,6 +6,7 @@ import { AccountController } from "./controllers/account.controller";
 import { CapCutAccountController } from "./controllers/capcut-account.controller";
 import { ItemController } from "./controllers/item.controller";
 import { BoomlifyController } from "./controllers/boomlify.controller";
+import { CreditService } from "./services/credit.service";
 
 // Initialize controllers
 let healthController: HealthController;
@@ -23,6 +24,17 @@ function initializeControllers(env: Env) {
 }
 
 export default {
+
+  /**
+   * Scheduled handler for daily credit reset (cron trigger)
+   */
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log("Running scheduled credit reset...");
+    const creditService = new CreditService(env);
+    const resetCount = await creditService.resetAllCredits();
+    console.log(`Reset credits for ${resetCount} API keys`);
+  },
+  
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Initialize controllers
     initializeControllers(env);
