@@ -65,6 +65,7 @@ export class CapCutAccountService {
        FROM capcut_accounts 
        WHERE status = 'created'
          AND (last_used_at IS NULL OR last_used_at < ?)
+         AND credits > 0
        ORDER BY COALESCE(last_used_at, '1970-01-01') ASC, id DESC
        LIMIT 1`
     )
