@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   COOKIE_BUCKET: R2Bucket;
   ACCOUNTS_WITHOUT_COOKIE_LIMIT?: string; // Limit for accounts without cookie query (default: 5)
+  R2_PUBLIC_URL_BASE?: string; // Base URL for R2 public access (e.g., "https://your-domain.com" or "https://<account-id>.r2.cloudflarestorage.com")
 }
 
 export interface BoomlifyApiKey {

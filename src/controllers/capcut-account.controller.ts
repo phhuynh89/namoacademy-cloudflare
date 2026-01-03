@@ -39,14 +39,14 @@ export class CapCutAccountController {
   }
 
   /**
-   * GET /api/capcut-accounts/with-cookie - Get any single CapCut account with valid sid_guard and not expired
+   * GET /api/capcut-accounts/with-cookie - Get any single CapCut account with valid cookie_file_url and not expired
    * Prevents duplicates by excluding accounts used in the last 5 minutes
    */
   async getAnyAccount(): Promise<Response> {
     try {
       const account = await this.capcutAccountService.getAnyAccount();
       if (!account) {
-        return errorResponse("No CapCut accounts available with valid sid_guard and not expired", 404);
+        return errorResponse("No CapCut accounts available with valid cookie_file_url and not expired", 404);
       }
       return jsonResponse(account);
     } catch (error) {
@@ -114,18 +114,19 @@ export class CapCutAccountController {
 
   /**
    * PUT /api/capcut-accounts/:id/cookie - Update account cookie from JSON
-   * Extracts sid_guard and expire_date from cookie JSON and saves to database
+   * Saves cookies to JSON file, uploads to R2, uses expire_date from request or extracts from sid_guard cookie, and updates database
    */
   async updateAccountCookie(id: string, request: Request): Promise<Response> {
     try {
       const body = await request.json() as { 
         cookies?: any; 
         url?: string;
+        expire_date?: string;
       };
       
       // Check if it's a cookie JSON format (has cookies array)
       if (body.cookies || (body.url && Array.isArray(body.cookies))) {
-        // Extract sid_guard and expire_date from cookies and save to database
+        // Save cookies to JSON file, upload to R2, use expire_date from request or extract from sid_guard cookie, and update database
         const result = await this.capcutAccountService.updateAccountCookieFromJson(
           id,
           body as any
@@ -138,8 +139,8 @@ export class CapCutAccountController {
         return jsonResponse({ 
           success: true, 
           message: "Cookie data saved successfully",
-          sidGuard: result.sidGuard,
-          expireDate: result.expireDate
+          expireDate: result.expireDate,
+          cookieFileUrl: result.cookieFileUrl
         });
       }
 
