@@ -198,8 +198,8 @@ export class CapCutAccountService {
         expireDate = new Date(sidGuardExpires * 1000).toISOString();
       }
 
-      // Convert cookie JSON to string
-      const cookieJsonString = JSON.stringify(cookieJson, null, 2);
+      // Convert cookie JSON to minified string
+      const cookieJsonString = JSON.stringify(cookieJson);
       
       // Generate filename for the cookie file (without timestamp)
       const fileName = `capcut-cookies/${id}.json`;
