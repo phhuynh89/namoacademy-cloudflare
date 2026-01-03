@@ -6,7 +6,7 @@ interface CookieJson {
     name?: string;
     value?: string;
     domain?: string;
-    expirationDate?: number;
+    expires?: number;
     [key: string]: any;
   }>;
 }
@@ -149,10 +149,7 @@ export class CapCutAccountService {
    */
   async getAccountsWithoutCookie(): Promise<any[]> {
     const now = new Date().toISOString();
-    // Get limit from environment variable, default to 5 if not set
-    const limit = this.env.ACCOUNTS_WITHOUT_COOKIE_LIMIT 
-      ? parseInt(this.env.ACCOUNTS_WITHOUT_COOKIE_LIMIT, 10) 
-      : 5;
+    const limit = 10;
     
     const result = await this.env.DB.prepare(
       `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, expire_date, sid_guard, last_used_at
@@ -180,21 +177,16 @@ export class CapCutAccountService {
       if (cookieJson.cookies && Array.isArray(cookieJson.cookies)) {
         for (const cookie of cookieJson.cookies) {
           // Find sid_guard cookie
-          if (cookie.name === 'sid_guard' && cookie.value) {
+          if (cookie.name === 'sid_guard' && cookie.value && cookie.expires) {
             sidGuard = cookie.value;
-          }
-          
-          // Find the latest expiration date
-          if (cookie.expirationDate && typeof cookie.expirationDate === 'number') {
-            if (maxExpirationDate === null || cookie.expirationDate > maxExpirationDate) {
-              maxExpirationDate = cookie.expirationDate;
-            }
+            maxExpirationDate = cookie.expires;
           }
         }
       }
       
       // Convert expiration date from Unix timestamp to ISO string
       let expireDate: string | null = null;
+
       if (maxExpirationDate) {
         expireDate = new Date(maxExpirationDate * 1000).toISOString();
       }
