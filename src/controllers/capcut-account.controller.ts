@@ -77,16 +77,94 @@ export class CapCutAccountController {
   }
 
   /**
+   * GET /api/capcut-accounts/cookie - Get any single account with valid (non-expired) cookie
+   */
+  async getAccountWithCookie(): Promise<Response> {
+    try {
+      const account = await this.capcutAccountService.getAccountWithCookie();
+      if (!account) {
+        return errorResponse("No CapCut accounts found with valid cookie", 404);
+      }
+      return jsonResponse(account);
+    } catch (error) {
+      console.error("Failed to get CapCut account with cookie:", error);
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
+      );
+    }
+  }
+
+  /**
+   * GET /api/capcut-accounts/without-cookie - Get accounts without cookie or expired cookie
+   */
+  async getAccountsWithoutCookie(): Promise<Response> {
+    try {
+      const accounts = await this.capcutAccountService.getAccountsWithoutCookie();
+      return jsonResponse(accounts);
+    } catch (error) {
+      console.error("Failed to get CapCut accounts without cookie:", error);
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
+      );
+    }
+  }
+
+  /**
+   * PUT /api/capcut-accounts/:id/cookie - Update account cookie from JSON file
+   * Accepts cookie JSON data, uploads to R2, and saves URL and expiration date
+   */
+  async updateAccountCookie(id: string, request: Request): Promise<Response> {
+    try {
+      const body = await request.json() as { 
+        cookies?: any; 
+        url?: string;
+      };
+      
+      // Check if it's a cookie JSON format (has cookies array)
+      if (body.cookies || (body.url && Array.isArray(body.cookies))) {
+        // Upload JSON to R2 and extract expiration date
+        const result = await this.capcutAccountService.updateAccountCookieFromJson(
+          id,
+          body as any,
+          this.env.COOKIE_BUCKET
+        );
+
+        if (!result.success) {
+          return errorResponse(result.error || "Failed to update cookie", 400);
+        }
+
+        return jsonResponse({ 
+          success: true, 
+          message: "Cookie JSON uploaded and account updated successfully",
+          cookieFileUrl: result.cookieFileUrl,
+          expireDate: result.expireDate
+        });
+      }
+
+      return errorResponse("Invalid request: Provide cookie JSON with 'cookies' array", 400);
+    } catch (error) {
+      console.error("Failed to update CapCut account cookie:", error);
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
+      );
+    }
+  }
+
+  /**
    * DELETE /api/capcut-accounts/:id - Reduce credits by 1, or delete if credits is 1
+   * Also deletes the cookie file from R2 when account is deleted
    */
   async deleteAccount(id: string): Promise<Response> {
     try {
-      const result = await this.capcutAccountService.reduceCreditsOrDelete(id);
+      const result = await this.capcutAccountService.reduceCreditsOrDelete(id, this.env.COOKIE_BUCKET);
       
       if (result.deleted) {
         return jsonResponse({ 
           success: true, 
-          message: "CapCut account deleted successfully (credits reached 0)",
+          message: "CapCut account and cookie file deleted successfully (credits reached 0)",
           deleted: true
         });
       }

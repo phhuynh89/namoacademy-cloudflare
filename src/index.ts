@@ -93,6 +93,21 @@ export default {
         return await capcutAccountController.getAnyAccount();
       }
 
+      if (path === "/api/capcut-accounts/cookie" && method === "GET") {
+        return await capcutAccountController.getAccountWithCookie();
+      }
+
+      if (path === "/api/capcut-accounts/without-cookie" && method === "GET") {
+        return await capcutAccountController.getAccountsWithoutCookie();
+      }
+
+      if (path.startsWith("/api/capcut-accounts/") && path.endsWith("/cookie") && method === "PUT") {
+        const id = Router.extractIdWithSuffix(path, "/api/capcut-accounts/", "/cookie");
+        if (id) {
+          return await capcutAccountController.updateAccountCookie(id, request);
+        }
+      }
+
       if (path.startsWith("/api/capcut-accounts/") && method === "GET") {
         const id = Router.extractId(path, "/api/capcut-accounts/");
         if (id) {

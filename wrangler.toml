@@ -8,10 +8,21 @@ binding = "DB"
 database_name = "namoacademy-db"
 database_id = "ec41096b-960f-4239-afcf-9e47d3f8430b"
 
+# R2 Bucket configuration
+# Note: Create the bucket first using: wrangler r2 bucket create capcut-cookies
+[[r2_buckets]]
+binding = "COOKIE_BUCKET"
+bucket_name = "capcut-cookies"
+
 # For local development
 [env.development]
 [[env.development.d1_databases]]
 binding = "DB"
 database_name = "namoacademy-db"
 database_id = "local"
+
+# R2 buckets work the same in development
+[[env.development.r2_buckets]]
+binding = "COOKIE_BUCKET"
+bucket_name = "capcut-cookies"
 
