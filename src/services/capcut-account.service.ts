@@ -87,7 +87,49 @@ export class CapCutAccountService {
   }
 
   /**
-   * Delete CapCut account by ID
+   * Reduce credits by 1, or delete account if credits is 1
+   * Returns: { deleted: boolean, credits?: number }
+   */
+  async reduceCreditsOrDelete(id: string): Promise<{ deleted: boolean; credits?: number }> {
+    // First, get the current account to check credits
+    const account = await this.getAccountById(id);
+    if (!account) {
+      return { deleted: false };
+    }
+
+    const currentCredits = account.credits ?? 10;
+
+    // If credits is 1, delete the account
+    if (currentCredits === 1) {
+      const result = await this.env.DB.prepare(
+        "DELETE FROM capcut_accounts WHERE id = ?"
+      )
+        .bind(id)
+        .run();
+      
+      if (result.success && (result.meta.changes || 0) > 0) {
+        return { deleted: true };
+      }
+      return { deleted: false };
+    }
+
+    // Otherwise, reduce credits by 1
+    const newCredits = currentCredits - 1;
+    const result = await this.env.DB.prepare(
+      "UPDATE capcut_accounts SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    )
+      .bind(newCredits, id)
+      .run();
+
+    if (result.success && (result.meta.changes || 0) > 0) {
+      return { deleted: false, credits: newCredits };
+    }
+
+    return { deleted: false };
+  }
+
+  /**
+   * Delete CapCut account by ID (direct delete, no credit reduction)
    */
   async deleteAccount(id: string): Promise<boolean> {
     const result = await this.env.DB.prepare(

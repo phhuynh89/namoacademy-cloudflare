@@ -77,17 +77,33 @@ export class CapCutAccountController {
   }
 
   /**
-   * DELETE /api/capcut-accounts/:id - Delete CapCut account by ID
+   * DELETE /api/capcut-accounts/:id - Reduce credits by 1, or delete if credits is 1
    */
   async deleteAccount(id: string): Promise<Response> {
     try {
-      const deleted = await this.capcutAccountService.deleteAccount(id);
-      if (!deleted) {
-        return errorResponse("CapCut account not found", 404);
+      const result = await this.capcutAccountService.reduceCreditsOrDelete(id);
+      
+      if (result.deleted) {
+        return jsonResponse({ 
+          success: true, 
+          message: "CapCut account deleted successfully (credits reached 0)",
+          deleted: true
+        });
       }
-      return jsonResponse({ success: true, message: "CapCut account deleted successfully" });
+      
+      if (result.credits !== undefined) {
+        return jsonResponse({ 
+          success: true, 
+          message: "Credits reduced successfully",
+          credits: result.credits,
+          deleted: false
+        });
+      }
+      
+      // Account not found
+      return errorResponse("CapCut account not found", 404);
     } catch (error) {
-      console.error("Failed to delete CapCut account:", error);
+      console.error("Failed to delete/reduce credits for CapCut account:", error);
       return errorResponse(
         error instanceof Error ? error.message : String(error),
         500
