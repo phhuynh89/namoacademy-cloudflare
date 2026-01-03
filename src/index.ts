@@ -89,7 +89,7 @@ export default {
         return await capcutAccountController.getAllAccounts();
       }
 
-      if (path === "/api/capcut-accounts/any" && method === "GET") {
+      if (path === "/api/capcut-accounts/with-cookie" && method === "GET") {
         return await capcutAccountController.getAnyAccount();
       }
 

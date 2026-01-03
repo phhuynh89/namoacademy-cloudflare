@@ -42,7 +42,7 @@ export class CapCutAccountService {
    */
   async getAllAccounts(): Promise<any[]> {
     const result = await this.env.DB.prepare(
-      "SELECT id, email, password, created_at, status, login_at, credits, last_used_at, expire_date, cookie_file_url FROM capcut_accounts ORDER BY id DESC"
+      "SELECT id, email, password, created_at, status, login_at, credits, last_used_at, expire_date, sid_guard FROM capcut_accounts ORDER BY id DESC"
     ).all();
     return result.results || [];
   }
@@ -52,7 +52,7 @@ export class CapCutAccountService {
    */
   async getAccountById(id: string): Promise<any | null> {
     const result = await this.env.DB.prepare(
-      "SELECT id, email, password, created_at, status, error, login_at, credits, last_used_at, expire_date, cookie_file_url, updated_at FROM capcut_accounts WHERE id = ?"
+      "SELECT id, email, password, created_at, status, error, login_at, credits, last_used_at, expire_date, sid_guard, updated_at FROM capcut_accounts WHERE id = ?"
     )
       .bind(id)
       .first();
@@ -61,6 +61,7 @@ export class CapCutAccountService {
 
   /**
    * Get any single CapCut account (limit 1)
+   * Returns only accounts that have sid_guard and are not expired
    * Prevents duplicate selection by excluding accounts used in the last 5 minutes
    * and immediately marking the selected account as used
    */
@@ -69,18 +70,21 @@ export class CapCutAccountService {
     // Exclude accounts used in the last 5 minutes to prevent duplicates
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
-    // Select an account that hasn't been used recently and has status 'created'
+    // Select an account that has sid_guard, is not expired, hasn't been used recently, and has status 'created'
     // Order by last_used_at (oldest first) to distribute load evenly
     const result = await this.env.DB.prepare(
-      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, last_used_at, expire_date, cookie_file_url
+      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, last_used_at, expire_date, sid_guard
        FROM capcut_accounts 
        WHERE status = 'created'
+         AND sid_guard IS NOT NULL
+         AND expire_date IS NOT NULL
+         AND expire_date > ?
          AND (last_used_at IS NULL OR last_used_at < ?)
          AND credits > 0
        ORDER BY COALESCE(last_used_at, '1970-01-01') ASC, id DESC
        LIMIT 1`
     )
-      .bind(fiveMinutesAgo)
+      .bind(now, fiveMinutesAgo)
       .first();
     
     if (!result) {
@@ -108,12 +112,12 @@ export class CapCutAccountService {
     // Exclude accounts used in the last 5 minutes to prevent duplicates
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
-    // Select an account that has a valid cookie file and hasn't been used recently
+    // Select an account that has a valid sid_guard and hasn't been used recently
     // Order by last_used_at (oldest first) to distribute load evenly
     const result = await this.env.DB.prepare(
-      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, expire_date, cookie_file_url, last_used_at
+      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, expire_date, sid_guard, last_used_at
        FROM capcut_accounts 
-       WHERE cookie_file_url IS NOT NULL 
+       WHERE sid_guard IS NOT NULL 
          AND expire_date IS NOT NULL 
          AND expire_date > ?
          AND status = 'created'
@@ -151,9 +155,9 @@ export class CapCutAccountService {
       : 5;
     
     const result = await this.env.DB.prepare(
-      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, expire_date, cookie_file_url, last_used_at
+      `SELECT id, email, password, created_at, status, error, login_at, credits, updated_at, expire_date, sid_guard, last_used_at
        FROM capcut_accounts 
-       WHERE (cookie_file_url IS NULL OR expire_date IS NULL OR expire_date < ?)
+       WHERE (sid_guard IS NULL OR expire_date IS NULL OR expire_date < ?)
          AND status = 'created'
          AND credits > 0
        ORDER BY id DESC 
@@ -165,15 +169,22 @@ export class CapCutAccountService {
   }
 
   /**
-   * Upload cookie JSON to R2 and update account with file URL and expiration date
+   * Extract sid_guard and expire_date from cookie JSON and save to database
    */
-  async updateAccountCookieFromJson(id: string, cookieJson: CookieJson, r2Bucket: R2Bucket): Promise<{ success: boolean; cookieFileUrl?: string; expireDate?: string; error?: string }> {
+  async updateAccountCookieFromJson(id: string, cookieJson: CookieJson): Promise<{ success: boolean; sidGuard?: string; expireDate?: string; error?: string }> {
     try {
-      // Extract expiration date from cookies (find the latest expiration date)
+      // Extract sid_guard and expiration date from cookies
+      let sidGuard: string | null = null;
       let maxExpirationDate: number | null = null;
       
       if (cookieJson.cookies && Array.isArray(cookieJson.cookies)) {
         for (const cookie of cookieJson.cookies) {
+          // Find sid_guard cookie
+          if (cookie.name === 'sid_guard' && cookie.value) {
+            sidGuard = cookie.value;
+          }
+          
+          // Find the latest expiration date
           if (cookie.expirationDate && typeof cookie.expirationDate === 'number') {
             if (maxExpirationDate === null || cookie.expirationDate > maxExpirationDate) {
               maxExpirationDate = cookie.expirationDate;
@@ -188,35 +199,21 @@ export class CapCutAccountService {
         expireDate = new Date(maxExpirationDate * 1000).toISOString();
       }
       
-      // Generate filename: capcut-cookies/{id}.json (overwrites existing file for this account)
-      const filename = `capcut-cookies/${id}.json`;
+      if (!sidGuard) {
+        return { success: false, error: 'sid_guard cookie not found in the provided cookies' };
+      }
       
-      // Upload JSON to R2
-      const jsonString = JSON.stringify(cookieJson, null, 2);
-      await r2Bucket.put(filename, jsonString, {
-        httpMetadata: {
-          contentType: 'application/json',
-        },
-      });
-      
-      // Store the R2 key (filename) in the database
-      // The full public URL can be constructed using:
-      // - Custom domain: https://<your-domain>/<filename>
-      // - R2 public URL: https://<account-id>.r2.cloudflarestorage.com/<bucket-name>/<filename>
-      // For now, we store the key and the URL can be constructed when needed
-      const cookieFileUrl = filename;
-      
-      // Update account with cookie file URL and expiration date
+      // Update account with sid_guard and expiration date
       const result = await this.env.DB.prepare(
-        "UPDATE capcut_accounts SET cookie_file_url = ?, expire_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        "UPDATE capcut_accounts SET sid_guard = ?, expire_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
       )
-        .bind(cookieFileUrl, expireDate, id)
+        .bind(sidGuard, expireDate, id)
         .run();
       
       if (result.success && (result.meta.changes || 0) > 0) {
         return { 
           success: true, 
-          cookieFileUrl,
+          sidGuard,
           expireDate: expireDate || undefined
         };
       }
@@ -233,10 +230,9 @@ export class CapCutAccountService {
 
   /**
    * Reduce credits by 1, or delete account if credits is 1
-   * Also deletes the cookie file from R2 if account is deleted
    * Returns: { deleted: boolean, credits?: number }
    */
-  async reduceCreditsOrDelete(id: string, r2Bucket?: R2Bucket): Promise<{ deleted: boolean; credits?: number }> {
+  async reduceCreditsOrDelete(id: string): Promise<{ deleted: boolean; credits?: number }> {
     // First, get the current account to check credits
     const account = await this.getAccountById(id);
     if (!account) {
@@ -245,18 +241,8 @@ export class CapCutAccountService {
 
     const currentCredits = account.credits ?? 10;
 
-    // If credits is 1, delete the account and its cookie file
+    // If credits is 1, delete the account
     if (currentCredits === 1) {
-      // Delete cookie file from R2 if it exists
-      if (r2Bucket && account.cookie_file_url) {
-        try {
-          await r2Bucket.delete(account.cookie_file_url);
-        } catch (error) {
-          // Log error but continue with account deletion
-          console.error(`Failed to delete cookie file ${account.cookie_file_url}:`, error);
-        }
-      }
-
       const result = await this.env.DB.prepare(
         "DELETE FROM capcut_accounts WHERE id = ?"
       )
@@ -286,22 +272,8 @@ export class CapCutAccountService {
 
   /**
    * Delete CapCut account by ID (direct delete, no credit reduction)
-   * Also deletes the cookie file from R2 if it exists
    */
-  async deleteAccount(id: string, r2Bucket?: R2Bucket): Promise<boolean> {
-    // Get account to check for cookie file before deletion
-    const account = await this.getAccountById(id);
-    
-    // Delete cookie file from R2 if it exists
-    if (r2Bucket && account?.cookie_file_url) {
-      try {
-        await r2Bucket.delete(account.cookie_file_url);
-      } catch (error) {
-        // Log error but continue with account deletion
-        console.error(`Failed to delete cookie file ${account.cookie_file_url}:`, error);
-      }
-    }
-
+  async deleteAccount(id: string): Promise<boolean> {
     const result = await this.env.DB.prepare(
       "DELETE FROM capcut_accounts WHERE id = ?"
     )

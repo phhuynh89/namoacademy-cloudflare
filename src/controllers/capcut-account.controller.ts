@@ -39,13 +39,14 @@ export class CapCutAccountController {
   }
 
   /**
-   * GET /api/capcut-accounts/any - Get any single CapCut account (prevents duplicates)
+   * GET /api/capcut-accounts/with-cookie - Get any single CapCut account with valid sid_guard and not expired
+   * Prevents duplicates by excluding accounts used in the last 5 minutes
    */
   async getAnyAccount(): Promise<Response> {
     try {
       const account = await this.capcutAccountService.getAnyAccount();
       if (!account) {
-        return errorResponse("No CapCut accounts available", 404);
+        return errorResponse("No CapCut accounts available with valid sid_guard and not expired", 404);
       }
       return jsonResponse(account);
     } catch (error) {
@@ -112,8 +113,8 @@ export class CapCutAccountController {
   }
 
   /**
-   * PUT /api/capcut-accounts/:id/cookie - Update account cookie from JSON file
-   * Accepts cookie JSON data, uploads to R2, and saves URL and expiration date
+   * PUT /api/capcut-accounts/:id/cookie - Update account cookie from JSON
+   * Extracts sid_guard and expire_date from cookie JSON and saves to database
    */
   async updateAccountCookie(id: string, request: Request): Promise<Response> {
     try {
@@ -124,11 +125,10 @@ export class CapCutAccountController {
       
       // Check if it's a cookie JSON format (has cookies array)
       if (body.cookies || (body.url && Array.isArray(body.cookies))) {
-        // Upload JSON to R2 and extract expiration date
+        // Extract sid_guard and expire_date from cookies and save to database
         const result = await this.capcutAccountService.updateAccountCookieFromJson(
           id,
-          body as any,
-          this.env.COOKIE_BUCKET
+          body as any
         );
 
         if (!result.success) {
@@ -137,8 +137,8 @@ export class CapCutAccountController {
 
         return jsonResponse({ 
           success: true, 
-          message: "Cookie JSON uploaded and account updated successfully",
-          cookieFileUrl: result.cookieFileUrl,
+          message: "Cookie data saved successfully",
+          sidGuard: result.sidGuard,
           expireDate: result.expireDate
         });
       }
@@ -155,16 +155,15 @@ export class CapCutAccountController {
 
   /**
    * DELETE /api/capcut-accounts/:id - Reduce credits by 1, or delete if credits is 1
-   * Also deletes the cookie file from R2 when account is deleted
    */
   async deleteAccount(id: string): Promise<Response> {
     try {
-      const result = await this.capcutAccountService.reduceCreditsOrDelete(id, this.env.COOKIE_BUCKET);
+      const result = await this.capcutAccountService.reduceCreditsOrDelete(id);
       
       if (result.deleted) {
         return jsonResponse({ 
           success: true, 
-          message: "CapCut account and cookie file deleted successfully (credits reached 0)",
+          message: "CapCut account deleted successfully (credits reached 0)",
           deleted: true
         });
       }
