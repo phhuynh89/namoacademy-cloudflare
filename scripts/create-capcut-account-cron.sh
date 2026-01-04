@@ -1,7 +1,6 @@
 #!/bin/bash
 
-
-set -e
+set -e  # Exit on error (will be disabled in error handling sections)
 
 export HOME="/home/ec2-user"
 export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
@@ -30,49 +29,60 @@ log_message() {
     echo "[$TIMESTAMP] $1" | tee -a "$LOG_FILE"
 }
 
-# Function to restart network to get new IP
+# Function to restart Amazon Linux server
+restart_server() {
+    log_message "========================================="
+    log_message "CRITICAL: Account creation failed. Restarting Amazon Linux server..."
+    log_message "========================================="
+    echo "" >> "$LOG_FILE"
+    
+    # Flush logs before restart
+    sync
+    
+    # Restart the server (Amazon Linux)
+    sudo reboot
+}
+
+# Function to restart network to get new IP (Amazon Linux)
 restart_network() {
     log_message "Attempting to restart network to get new IP address..."
     
-    # Detect active network interface (WiFi or Ethernet)
-    ACTIVE_INTERFACE=$(route get default 2>/dev/null | grep interface | awk '{print $2}')
+    # Detect active network interface (Amazon Linux)
+    ACTIVE_INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
     
     if [ -z "$ACTIVE_INTERFACE" ]; then
-        # Try to find WiFi interface
-        WIFI_INTERFACE=$(networksetup -listallhardwareports 2>/dev/null | grep -A 1 "Wi-Fi" | grep "Device" | awk '{print $2}')
-        if [ -n "$WIFI_INTERFACE" ]; then
-            ACTIVE_INTERFACE="$WIFI_INTERFACE"
-        fi
+        # Try alternative method to find default interface
+        ACTIVE_INTERFACE=$(route -n | grep '^0.0.0.0' | awk '{print $8}' | head -1)
+    fi
+    
+    if [ -z "$ACTIVE_INTERFACE" ]; then
+        # Fallback: try to find any active interface
+        ACTIVE_INTERFACE=$(ip link show | grep -E '^[0-9]+:' | grep -v lo | head -1 | awk '{print $2}' | sed 's/://')
     fi
     
     if [ -n "$ACTIVE_INTERFACE" ]; then
         log_message "Found active interface: $ACTIVE_INTERFACE"
         
-        # Try to restart WiFi first (most common on macOS)
-        if [[ "$ACTIVE_INTERFACE" == en* ]]; then
-            # Check if it's WiFi
-            WIFI_SERVICE=$(networksetup -listallhardwareports 2>/dev/null | grep -B 1 "$ACTIVE_INTERFACE" | head -1 | sed 's/Hardware Port: //')
-            
-            if [[ "$WIFI_SERVICE" == *"Wi-Fi"* ]] || [[ "$WIFI_SERVICE" == *"AirPort"* ]]; then
-                log_message "Restarting WiFi interface: $ACTIVE_INTERFACE"
-                sudo ipconfig set en1 DHCP
-            else
-                # Ethernet interface
-                log_message "Restarting Ethernet interface: $ACTIVE_INTERFACE"
-                sudo ipconfig set en0 DHCP
-            fi
-        else
-            # Generic interface restart
-            log_message "Restarting network interface: $ACTIVE_INTERFACE"
-            sudo ipconfig set en0 DHCP
+        # Restart network interface on Amazon Linux
+        log_message "Restarting network interface: $ACTIVE_INTERFACE"
+        sudo ifdown "$ACTIVE_INTERFACE" 2>/dev/null || true
+        sleep 2
+        sudo ifup "$ACTIVE_INTERFACE" 2>/dev/null || true
+        
+        # Alternative: use systemctl to restart network (if using NetworkManager)
+        if command -v systemctl &> /dev/null; then
+            sudo systemctl restart network 2>/dev/null || sudo systemctl restart NetworkManager 2>/dev/null || true
         fi
         
         log_message "Waiting 10 seconds for network to reconnect..."
         sleep 10
         
         # Verify network is back up
-        if ping -c 1 -W 2000 8.8.8.8 >/dev/null 2>&1; then
-            NEW_IP=$(ifconfig "$ACTIVE_INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}')
+        if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+            NEW_IP=$(ip addr show "$ACTIVE_INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
+            if [ -z "$NEW_IP" ]; then
+                NEW_IP=$(ifconfig "$ACTIVE_INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}')
+            fi
             log_message "Network restarted successfully. New IP: $NEW_IP"
             return 0
         else
@@ -126,8 +136,10 @@ while true; do
     
     # Run the CapCut account creation script
     log_message "Running: npm run capcut-account-creator"
+    set +e  # Disable exit on error for this section
     npm run capcut-account-creator >> "$LOG_FILE" 2>&1
     EXIT_CODE=$?
+    set -e  # Re-enable exit on error
 
     if [ $EXIT_CODE -eq 0 ]; then
         log_message "CapCut account creation completed successfully"
@@ -148,8 +160,10 @@ while true; do
         log_message "========================================="
         
         # Restart network to get new IP
+        set +e  # Disable exit on error for network restart
         restart_network
         NETWORK_RESTART_CODE=$?
+        set -e  # Re-enable exit on error
         
         if [ $NETWORK_RESTART_CODE -eq 0 ]; then
             log_message "Network restarted. Retrying account creation..."
@@ -158,8 +172,10 @@ while true; do
             log_message "========================================="
             
             # Retry the account creation
+            set +e  # Disable exit on error for retry
             npm run capcut-account-creator >> "$LOG_FILE" 2>&1
             RETRY_EXIT_CODE=$?
+            set -e  # Re-enable exit on error
             
             if [ $RETRY_EXIT_CODE -eq 0 ]; then
                 log_message "CapCut account creation completed successfully after retry"
@@ -176,24 +192,24 @@ while true; do
             else
                 log_message "CapCut account creation failed again after retry with exit code: $RETRY_EXIT_CODE"
                 log_message "========================================="
-                log_message "Will retry in next iteration. Waiting 10 seconds before retrying..."
+                log_message "Account creation failed after network restart. Restarting server..."
                 log_message "========================================="
                 echo "" >> "$LOG_FILE"
                 
-                # Wait 10 seconds before next iteration (longer wait after failure)
-                sleep 10
-                
-                ITERATION=$((ITERATION + 1))
+                # Restart the server
+                restart_server
+                # This will reboot the server, so the script won't continue
             fi
         else
-            log_message "Network restart failed or skipped. Will retry in next iteration. Waiting 10 seconds before retrying..."
+            log_message "Network restart failed or skipped."
+            log_message "========================================="
+            log_message "Account creation failed and network restart failed. Restarting server..."
             log_message "========================================="
             echo "" >> "$LOG_FILE"
             
-            # Wait 10 seconds before next iteration (longer wait after failure)
-            sleep 10
-            
-            ITERATION=$((ITERATION + 1))
+            # Restart the server
+            restart_server
+            # This will reboot the server, so the script won't continue
         fi
     fi
 done
