@@ -136,40 +136,74 @@ while true; do
         ITERATION=$((ITERATION + 1))
     else
         log_message "CapCut account creation failed with exit code: $EXIT_CODE"
-        log_message "========================================="
-        log_message "Attempting to restart network and retry..."
-        log_message "========================================="
         
-        # Restart network to get new IP
-        restart_network
-        NETWORK_RESTART_CODE=$?
+        # Check if the error is OTP timeout - check last 100 lines of log for recent error
+        LAST_LOG_LINES=$(tail -n 100 "$LOG_FILE" 2>/dev/null)
+        OTP_ERROR_DETECTED=false
+        if echo "$LAST_LOG_LINES" | grep -qi "OTP not received within timeout period"; then
+            OTP_ERROR_DETECTED=true
+        elif echo "$LAST_LOG_LINES" | grep -qi "✗.*OTP.*timeout"; then
+            OTP_ERROR_DETECTED=true
+        elif echo "$LAST_LOG_LINES" | grep -qi "✗ Account creation failed" && echo "$LAST_LOG_LINES" | grep -qi "OTP"; then
+            OTP_ERROR_DETECTED=true
+        fi
         
-        if [ $NETWORK_RESTART_CODE -eq 0 ]; then
-            log_message "Network restarted. Retrying account creation..."
+        if [ "$OTP_ERROR_DETECTED" = true ]; then
+            log_message "OTP timeout error detected. Skipping network restart."
             log_message "========================================="
-            log_message "Retry - Starting CapCut account creation"
+            log_message "Will retry in next iteration. Waiting 10 seconds before retrying..."
+            log_message "========================================="
+            echo "" >> "$LOG_FILE"
+            
+            # Wait 10 seconds before next iteration
+            sleep 10
+            
+            ITERATION=$((ITERATION + 1))
+        else
+            log_message "========================================="
+            log_message "Attempting to restart network and retry..."
             log_message "========================================="
             
-            # Retry the account creation
-            npm run capcut-account-creator >> "$LOG_FILE" 2>&1
-            RETRY_EXIT_CODE=$?
+            # Restart network to get new IP
+            restart_network
+            NETWORK_RESTART_CODE=$?
             
-            if [ $RETRY_EXIT_CODE -eq 0 ]; then
-                log_message "CapCut account creation completed successfully after retry"
+            if [ $NETWORK_RESTART_CODE -eq 0 ]; then
+                log_message "Network restarted. Retrying account creation..."
                 log_message "========================================="
-                log_message "Iteration #$ITERATION - Finished CapCut account creation process (after retry)"
-                log_message "Waiting 5 seconds before next iteration..."
+                log_message "Retry - Starting CapCut account creation"
                 log_message "========================================="
-                echo "" >> "$LOG_FILE"
                 
-                # Wait 5 seconds before next iteration
-                sleep 5
+                # Retry the account creation
+                npm run capcut-account-creator >> "$LOG_FILE" 2>&1
+                RETRY_EXIT_CODE=$?
                 
-                ITERATION=$((ITERATION + 1))
+                if [ $RETRY_EXIT_CODE -eq 0 ]; then
+                    log_message "CapCut account creation completed successfully after retry"
+                    log_message "========================================="
+                    log_message "Iteration #$ITERATION - Finished CapCut account creation process (after retry)"
+                    log_message "Waiting 5 seconds before next iteration..."
+                    log_message "========================================="
+                    echo "" >> "$LOG_FILE"
+                    
+                    # Wait 5 seconds before next iteration
+                    sleep 5
+                    
+                    ITERATION=$((ITERATION + 1))
+                else
+                    log_message "CapCut account creation failed again after retry with exit code: $RETRY_EXIT_CODE"
+                    log_message "========================================="
+                    log_message "Will retry in next iteration. Waiting 10 seconds before retrying..."
+                    log_message "========================================="
+                    echo "" >> "$LOG_FILE"
+                    
+                    # Wait 10 seconds before next iteration (longer wait after failure)
+                    sleep 10
+                    
+                    ITERATION=$((ITERATION + 1))
+                fi
             else
-                log_message "CapCut account creation failed again after retry with exit code: $RETRY_EXIT_CODE"
-                log_message "========================================="
-                log_message "Will retry in next iteration. Waiting 10 seconds before retrying..."
+                log_message "Network restart failed or skipped. Will retry in next iteration. Waiting 10 seconds before retrying..."
                 log_message "========================================="
                 echo "" >> "$LOG_FILE"
                 
@@ -178,15 +212,6 @@ while true; do
                 
                 ITERATION=$((ITERATION + 1))
             fi
-        else
-            log_message "Network restart failed or skipped. Will retry in next iteration. Waiting 10 seconds before retrying..."
-            log_message "========================================="
-            echo "" >> "$LOG_FILE"
-            
-            # Wait 10 seconds before next iteration (longer wait after failure)
-            sleep 10
-            
-            ITERATION=$((ITERATION + 1))
         fi
     fi
 done

@@ -97,3 +97,8 @@ export interface Item {
   updated_at: string;
 }
 
+export interface SqliteSequence {
+  name: string;
+  seq: number;
+}
+

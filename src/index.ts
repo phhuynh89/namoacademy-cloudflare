@@ -6,6 +6,7 @@ import { AccountController } from "./controllers/account.controller";
 import { CapCutAccountController } from "./controllers/capcut-account.controller";
 import { ItemController } from "./controllers/item.controller";
 import { BoomlifyController } from "./controllers/boomlify.controller";
+import { SqliteSequenceController } from "./controllers/sqlite-sequence.controller";
 import { CreditService } from "./services/credit.service";
 
 // Initialize controllers
@@ -14,6 +15,7 @@ let accountController: AccountController;
 let capcutAccountController: CapCutAccountController;
 let itemController: ItemController;
 let boomlifyController: BoomlifyController;
+let sqliteSequenceController: SqliteSequenceController;
 
 function initializeControllers(env: Env) {
   healthController = new HealthController();
@@ -21,6 +23,7 @@ function initializeControllers(env: Env) {
   capcutAccountController = new CapCutAccountController(env);
   itemController = new ItemController(env);
   boomlifyController = new BoomlifyController(env);
+  sqliteSequenceController = new SqliteSequenceController(env);
 }
 
 export default {
@@ -203,6 +206,11 @@ export default {
         if (emailId) {
           return await boomlifyController.getMessages(emailId);
         }
+      }
+
+      // Sqlite Sequence endpoints
+      if (path === "/api/sqlite-sequence" && method === "GET") {
+        return await sqliteSequenceController.getAllSequences();
       }
 
       // 404 for unknown routes
