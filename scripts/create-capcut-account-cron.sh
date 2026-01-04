@@ -1,5 +1,12 @@
 #!/bin/bash
 
+
+set -e
+
+export HOME="/home/ec2-user"
+export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
+cd /home/ec2-user/namoacademy-cloudflare
+
 # Script to create CapCut account via cronjob
 # This script runs the CapCut account creation process continuously in a loop
 
