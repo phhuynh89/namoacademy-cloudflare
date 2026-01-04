@@ -48,28 +48,16 @@ restart_network() {
             
             if [[ "$WIFI_SERVICE" == *"Wi-Fi"* ]] || [[ "$WIFI_SERVICE" == *"AirPort"* ]]; then
                 log_message "Restarting WiFi interface: $ACTIVE_INTERFACE"
-                sudo networksetup -setnetworkserviceenabled "$WIFI_SERVICE" off
-                sleep 2
-                sudo networksetup -setnetworkserviceenabled "$WIFI_SERVICE" on
+                sudo ipconfig set en1 DHCP
             else
                 # Ethernet interface
                 log_message "Restarting Ethernet interface: $ACTIVE_INTERFACE"
-                # For Ethernet, we can try to toggle the service or renew DHCP
-                ETHERNET_SERVICE=$(networksetup -listallhardwareports 2>/dev/null | grep -B 1 "$ACTIVE_INTERFACE" | head -1 | sed 's/Hardware Port: //')
-                if [ -n "$ETHERNET_SERVICE" ]; then
-                    sudo networksetup -setnetworkserviceenabled "$ETHERNET_SERVICE" off
-                    sleep 2
-                    sudo networksetup -setnetworkserviceenabled "$ETHERNET_SERVICE" on
-                else
-                    sudo ipconfig set "$ACTIVE_INTERFACE" DHCP
-                fi
+                sudo ipconfig set en0 DHCP
             fi
         else
             # Generic interface restart
             log_message "Restarting network interface: $ACTIVE_INTERFACE"
-            sudo ifconfig "$ACTIVE_INTERFACE" down 2>/dev/null
-            sleep 2
-            sudo ifconfig "$ACTIVE_INTERFACE" up 2>/dev/null
+            sudo ipconfig set en0 DHCP
         fi
         
         log_message "Waiting 10 seconds for network to reconnect..."

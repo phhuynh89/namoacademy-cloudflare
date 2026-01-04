@@ -21,8 +21,8 @@ export class CapCutAccountService {
   /**
    * Save CapCut account to database
    */
-  async saveAccount(accountData: CapCutAccountData): Promise<void> {
-    await this.env.DB.prepare(
+  async saveAccount(accountData: CapCutAccountData): Promise<any> {
+    const result = await this.env.DB.prepare(
       `INSERT INTO capcut_accounts (email, password, created_at, status, error, login_at, credits)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
@@ -36,6 +36,15 @@ export class CapCutAccountService {
         accountData.credits ?? 10
       )
       .run();
+
+    if (result.success && (result.meta.changes || 0) > 0) {
+      return {
+        success: true,
+        id: result.meta.last_row_id,
+        message: 'Account saved successfully'
+      };
+    }
+    return { success: false, message: 'Failed to save account' };
   }
 
   /**

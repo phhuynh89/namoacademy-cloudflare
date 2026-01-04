@@ -19,8 +19,8 @@ export class CapCutAccountController {
     const accountData = await request.json() as CapCutAccountData;
 
     try {
-      await this.capcutAccountService.saveAccount(accountData);
-      return jsonResponse({ success: true, message: "CapCut account saved successfully" });
+      const capcutAccount = await this.capcutAccountService.saveAccount(accountData);
+      return jsonResponse(capcutAccount);
     } catch (error) {
       console.error("Failed to save CapCut account:", error);
       return errorResponse(
