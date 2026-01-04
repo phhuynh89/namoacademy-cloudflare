@@ -120,6 +120,13 @@ export default {
         }
       }
 
+      if (path.startsWith("/api/capcut-accounts/") && path.endsWith("/cookies") && method === "GET") {
+        const id = Router.extractIdWithSuffix(path, "/api/capcut-accounts/", "/cookies");
+        if (id) {
+          return await capcutAccountController.getCookies(id);
+        }
+      }
+
       if (path.startsWith("/api/capcut-accounts/") && method === "GET") {
         const id = Router.extractId(path, "/api/capcut-accounts/");
         if (id) {

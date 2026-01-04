@@ -332,10 +332,12 @@ async function createSingleAccount(): Promise<{ success: boolean; email?: string
       status: result.success ? 'created' : 'failed',
       error: result.error,
     };
-    
-    // Save to D1 database via Worker API
-    console.log('Saving account to D1 database...');
-    await saveAccountToD1(accountData);
+
+    if (result.success) {
+      // Save to D1 database via Worker API
+      console.log('Saving account to D1 database...');
+      await saveAccountToD1(accountData);
+    }
     
     // Close browser after account creation
     console.log('Closing browser...');

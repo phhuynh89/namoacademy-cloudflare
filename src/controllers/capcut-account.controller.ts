@@ -86,7 +86,9 @@ export class CapCutAccountController {
       if (!account) {
         return errorResponse("No CapCut accounts found with valid cookie", 404);
       }
-      return jsonResponse(account);
+      const result = await this.capcutAccountService.getCookiesFromR2(account.cookie_file_url);
+
+      return jsonResponse({ ...account, cookies: result.cookies });
     } catch (error) {
       console.error("Failed to get CapCut account with cookie:", error);
       return errorResponse(
@@ -147,6 +149,39 @@ export class CapCutAccountController {
       return errorResponse("Invalid request: Provide cookie JSON with 'cookies' array", 400);
     } catch (error) {
       console.error("Failed to update CapCut account cookie:", error);
+      return errorResponse(
+        error instanceof Error ? error.message : String(error),
+        500
+      );
+    }
+  }
+
+  /**
+   * GET /api/capcut-accounts/:id/cookies - Get cookies JSON file from R2 based on account's cookie_file_url
+   */
+  async getCookies(id: string): Promise<Response> {
+    try {
+      // First, get the account to retrieve cookie_file_url
+      const account = await this.capcutAccountService.getAccountById(id);
+      
+      if (!account) {
+        return errorResponse("CapCut account not found", 404);
+      }
+
+      if (!account.cookie_file_url) {
+        return errorResponse("Account does not have a cookie file URL", 404);
+      }
+
+      // Get cookies from R2
+      const result = await this.capcutAccountService.getCookiesFromR2(account.cookie_file_url);
+
+      if (!result.success) {
+        return errorResponse(result.error || "Failed to retrieve cookies from R2", 404);
+      }
+
+      return jsonResponse(result.cookies);
+    } catch (error) {
+      console.error("Failed to get cookies:", error);
       return errorResponse(
         error instanceof Error ? error.message : String(error),
         500

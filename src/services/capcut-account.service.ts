@@ -295,5 +295,51 @@ export class CapCutAccountService {
       .run();
     return result.success && (result.meta.changes || 0) > 0;
   }
+
+  /**
+   * Get cookies JSON file from R2 based on cookie_file_url
+   */
+  async getCookiesFromR2(cookieFileUrl: string): Promise<{ success: boolean; cookies?: any; error?: string }> {
+    try {
+      // Extract the key from the URL if it's a full URL
+      // If R2_PUBLIC_URL_BASE is set, the URL might be: https://domain.com/capcut-cookies/123.json
+      // Otherwise, it's just the key: capcut-cookies/123.json
+      let key = cookieFileUrl;
+      
+      if (this.env.R2_PUBLIC_URL_BASE && cookieFileUrl.startsWith(this.env.R2_PUBLIC_URL_BASE)) {
+        // Extract key from full URL
+        key = cookieFileUrl.replace(this.env.R2_PUBLIC_URL_BASE + '/', '');
+      } else if (cookieFileUrl.includes('://')) {
+        // If it's a full URL but not matching R2_PUBLIC_URL_BASE, try to extract the path
+        try {
+          const url = new URL(cookieFileUrl);
+          key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+        } catch {
+          // If URL parsing fails, use the original value as key
+          key = cookieFileUrl;
+        }
+      }
+
+      // Get the object from R2
+      const object = await this.env.COOKIE_BUCKET.get(key);
+      
+      if (!object) {
+        return { success: false, error: 'Cookie file not found in R2' };
+      }
+
+      // Read the object body as text
+      const text = await object.text();
+      
+      // Parse JSON
+      const { cookies } = JSON.parse(text);
+      
+      return { success: true, cookies };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
 }
 
