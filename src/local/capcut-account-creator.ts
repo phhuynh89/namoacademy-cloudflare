@@ -502,20 +502,82 @@ async function createCapCutAccount(
 
     await delay(500);
 
-    // Step 3: Click primary button
-    await clickCapCutPrimaryButton(page);
+    // Step 3: Click primary button and wait for password field with retry logic
+    const MAX_EMAIL_RETRIES = 5;
+    const EMAIL_RETRY_DELAY = 3000; // 3 seconds between retries
+    let passwordInput = null;
+    let emailRetryCount = 0;
+    
+    while (!passwordInput && emailRetryCount < MAX_EMAIL_RETRIES) {
+      if (emailRetryCount > 0) {
+        console.log(`Retrying email entry (attempt ${emailRetryCount + 1}/${MAX_EMAIL_RETRIES})...`);
+        // Clear and re-enter email
+        const emailInputRetry = await page.$('input[name="signUsername"]');
+        if (emailInputRetry) {
+          await emailInputRetry.click({ clickCount: 3 });
+          await emailInputRetry.type(email, { delay: 50 });
+          console.log("✓ Email re-filled");
+          await delay(500);
+        }
+      }
+      
+      // Click primary button
+      await clickCapCutPrimaryButton(page);
+      
+      // Wait and check for password field
+      console.log("Waiting for password field to appear...");
+      await delay(2000);
+      
+      // Check for password input field
+      passwordInput = await page.$('input[type="password"]');
+      
+      if (!passwordInput) {
+        // Check for error messages indicating email not found
+        const errorMessages = await page.evaluate(() => {
+          const errorSelectors = [
+            'div[class*="error"]',
+            'span[class*="error"]',
+            'p[class*="error"]',
+            'div[class*="message"]',
+            'span[class*="message"]',
+          ];
+          
+          for (const selector of errorSelectors) {
+            const elements = Array.from(document.querySelectorAll(selector));
+            for (const el of elements) {
+              const text = (el.textContent || el.innerText || '').toLowerCase();
+              if (text.includes('not found') || text.includes('email') || text.includes('invalid')) {
+                return text;
+              }
+            }
+          }
+          return null;
+        });
+        
+        if (errorMessages) {
+          console.log(`⚠ Error message detected: ${errorMessages}`);
+        }
+        
+        emailRetryCount++;
+        if (emailRetryCount < MAX_EMAIL_RETRIES) {
+          console.log(`Password field not found. Waiting ${EMAIL_RETRY_DELAY / 1000} seconds before retry...`);
+          await delay(EMAIL_RETRY_DELAY);
+        }
+      } else {
+        console.log("✓ Password field found");
+        break;
+      }
+    }
 
     // Step 4: Fill password
-    console.log("Filling password...");
-    await delay(1000);
-    const passwordInput = await page.$('input[type="password"]');
-    if (passwordInput) {
-      await passwordInput.click({ clickCount: 3 });
-      await passwordInput.type(password, { delay: 50 });
-      console.log("✓ Password filled");
-    } else {
-      throw new Error("Could not find password input field");
+    if (!passwordInput) {
+      throw new Error(`Could not find password input field after ${MAX_EMAIL_RETRIES} retries. Email may not be found.`);
     }
+    
+    console.log("Filling password...");
+    await passwordInput.click({ clickCount: 3 });
+    await passwordInput.type(password, { delay: 50 });
+    console.log("✓ Password filled");
 
     await delay(500);
 
