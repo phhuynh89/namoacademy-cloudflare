@@ -39,8 +39,8 @@ restart_server() {
     # Flush logs before restart
     sync
     
-    # Restart the server (Amazon Linux)
-    sudo reboot
+    # Shutdown the server (Amazon Linux)
+    sudo shutdown -h now
 }
 
 # Function to restart network to get new IP (Amazon Linux)
