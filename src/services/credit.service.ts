@@ -67,6 +67,17 @@ export class CreditService {
   }
 
   /**
+   * Update credits for an API key
+   */
+  async updateCredits(keyId: number, credits: number): Promise<void> {
+    await this.env.DB.prepare(
+      `UPDATE boomlify_api_keys SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    )
+      .bind(credits, keyId)
+      .run();
+  }
+
+  /**
    * Get current credits for an API key
    */
   async getCredits(keyId: number): Promise<number | null> {

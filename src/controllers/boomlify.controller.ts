@@ -53,9 +53,12 @@ export class BoomlifyController {
    * No request body required - API key is automatically selected
    */
   async getTempMail(request: Request): Promise<Response> {
+    let keyId: number | undefined;
+
     try {
       // Find an available API key with credits > 0 (automatically resets credits if needed)
       const keyRecord = await this.keyService.findAvailableKey();
+      keyId = keyRecord?.id;
 
       if (!keyRecord) {
         return jsonResponse(
@@ -80,6 +83,15 @@ export class BoomlifyController {
       });
     } catch (error) {
       console.error("Error getting temp mail:", error);
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes("INSUFFICIENT_CREDITS") && keyId) {
+        // update credits for the key
+        await this.creditService.updateCredits(keyId, 0);
+
+        return this.getTempMail(request);
+      }
+
       return jsonResponse(
         {
           error: "Failed to get temp mail",
