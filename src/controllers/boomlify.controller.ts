@@ -92,6 +92,13 @@ export class BoomlifyController {
         return this.getTempMail(request);
       }
 
+      if (message.includes("ACCOUNT_RESTRICTED") && keyId) {
+        // Update status to restricted
+        await this.keyService.updateStatus(keyId, 'restricted');
+
+        return this.getTempMail(request);
+      }
+
       return jsonResponse(
         {
           error: "Failed to get temp mail",

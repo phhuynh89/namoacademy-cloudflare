@@ -11,6 +11,7 @@ export interface BoomlifyApiKey {
   name: string | null;
   credits: number;
   last_reset: string;
+  status: 'active' | 'restricted';
   created_at: string;
   updated_at: string;
 }

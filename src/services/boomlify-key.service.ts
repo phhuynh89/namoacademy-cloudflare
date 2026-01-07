@@ -16,8 +16,9 @@ export class BoomlifyKeyService {
    */
   async getAllKeys(): Promise<BoomlifyApiKey[]> {
     const result = await this.env.DB.prepare(
-      `SELECT id, api_key, name, credits, last_reset, created_at, updated_at 
+      `SELECT id, api_key, name, credits, last_reset, status, created_at, updated_at 
        FROM boomlify_api_keys 
+       WHERE status != 'restricted'
        ORDER BY id DESC`
     ).all<BoomlifyApiKey>();
 
@@ -29,8 +30,8 @@ export class BoomlifyKeyService {
    */
   async createKey(apiKey: string, name?: string): Promise<BoomlifyApiKey> {
     const result = await this.env.DB.prepare(
-      `INSERT INTO boomlify_api_keys (api_key, name, credits, last_reset) 
-       VALUES (?, ?, 50, CURRENT_TIMESTAMP) 
+      `INSERT INTO boomlify_api_keys (api_key, name, credits, last_reset, status) 
+       VALUES (?, ?, 50, CURRENT_TIMESTAMP, 'active') 
        RETURNING *`
     )
       .bind(apiKey, name || null)
@@ -48,7 +49,7 @@ export class BoomlifyKeyService {
    */
   async findByKey(apiKey: string): Promise<{ id: number; api_key: string; credits: number; last_reset: string } | null> {
     return await this.env.DB.prepare(
-      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys WHERE api_key = ?`
+      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys WHERE api_key = ? AND status != 'restricted'`
     )
       .bind(apiKey)
       .first<{ id: number; api_key: string; credits: number; last_reset: string }>();
@@ -59,7 +60,7 @@ export class BoomlifyKeyService {
    */
   async findById(id: number): Promise<{ id: number; api_key: string; credits: number; last_reset: string } | null> {
     return await this.env.DB.prepare(
-      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys WHERE id = ?`
+      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys WHERE id = ? AND status != 'restricted'`
     )
       .bind(id)
       .first<{ id: number; api_key: string; credits: number; last_reset: string }>();
@@ -109,11 +110,12 @@ export class BoomlifyKeyService {
   /**
    * Find an available API key with credits > 0
    * Automatically resets credits if needed before checking
+   * Excludes restricted keys
    */
   async findAvailableKey(): Promise<{ id: number; api_key: string; credits: number; last_reset: string } | null> {
-    // Get all keys ordered by ID (or you could order by credits DESC to prefer keys with more credits)
+    // Get all active keys ordered by ID (or you could order by credits DESC to prefer keys with more credits)
     const keys = await this.env.DB.prepare(
-      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys ORDER BY id ASC`
+      `SELECT id, api_key, credits, last_reset FROM boomlify_api_keys WHERE status != 'restricted' ORDER BY id ASC`
     ).all<{ id: number; api_key: string; credits: number; last_reset: string }>();
 
     if (!keys.results || keys.results.length === 0) {
@@ -136,6 +138,19 @@ export class BoomlifyKeyService {
 
     // No keys with credits > 0 available
     return null;
+  }
+
+  /**
+   * Update status of an API key
+   */
+  async updateStatus(id: number, status: 'active' | 'restricted'): Promise<boolean> {
+    const result = await this.env.DB.prepare(
+      `UPDATE boomlify_api_keys SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    )
+      .bind(status, id)
+      .run();
+    
+    return result.success && (result.meta.changes || 0) > 0;
   }
 }
 
