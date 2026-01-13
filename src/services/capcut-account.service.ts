@@ -104,7 +104,7 @@ export class CapCutAccountService {
     // Immediately mark the account as used to prevent other concurrent requests from selecting it
     // Use WHERE clause with id to ensure we only update if it's still the same account
     await this.env.DB.prepare(
-      "UPDATE capcut_accounts SET last_used_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      "UPDATE capcut_accounts SET credits = credits - 1, last_used_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
     )
       .bind(now, result.id)
       .run();
